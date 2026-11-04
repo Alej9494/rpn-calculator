@@ -1,19 +1,27 @@
-// RPN_Stage3.ino
-// RPN calculator, stage 3: stage 2 (exact 12-digit BCD maths) with proper
-// fonts: DejaVu Sans Condensed Bold throughout, with equal-width digits and
-// a true minus sign.
-// Real sleep and PC-pin wiring come later.
+// RPN_Stage4.ino
+// RPN calculator, stage 4: stage 3 (BCD maths, DejaVu fonts) with real sleep.
+// Between key presses the chip is in Stop 2 (a few microamps) with the stack
+// kept in RAM. Any key wakes it.
 //
-// Sketch folder RPN_Stage3 must contain: RPN_Stage3.ino, bcd.h, bcd.cpp,
+// Sketch folder RPN_Stage4 must contain: RPN_Stage4.ino, bcd.h, bcd.cpp,
 // bcd_selftest.h, fonts.h.
 //
 // Hardware: Nucleo-L476RG, Adafruit 2.7" Sharp Memory breakout, 6 x 4 keypad.
-// Wiring (unchanged from the test sketches):
+// Wiring:
 //   Display: CLK -> D13, DI -> D11, CS -> D10, VIN -> 3V3 or 5V, GND -> GND
-//   Keypad:  rows R1-R6 -> D2-D7, columns C1-C4 -> A0-A3
-// Libraries: "Adafruit SHARP Memory Display" and "Adafruit GFX"
-// The "Newlib Nano + Float Printf" setting is no longer needed: BCD does
-// its own formatting.
+//   Keypad rows R1-R6:    PC6 (CN10-4), PC7 (CN10-19), PC8 (CN10-2),
+//                         PC9 (CN10-1), PC10 (CN7-1), PC11 (CN7-2)
+//   Keypad columns C1-C4: PC0 (CN7-38), PC1 (CN7-36), PC2 (CN7-35), PC3 (CN7-37)
+//   (the same pins as the PCB; each column has its own wake-up line)
+// Libraries: "Adafruit SHARP Memory Display", "Adafruit GFX",
+//            "STM32duino Low Power" and "STM32duino RTC"
+//
+// Power:
+// - On and idle: Stop 2, waking once a second to toggle the display's VCOM
+//   and count towards the 5-minute auto-off. (The PCB will toggle VCOM from
+//   the low-power timer instead, so it won't need these wakes.)
+// - Off: screen cleared, Stop 2 with no timed wakes; only a key wakes it.
+// - Serial Monitor only shows output while the chip is awake.
 //
 // Behaviour (HP 48 style):
 // - Typing goes on a command line at the bottom, left-justified; the stack
@@ -25,13 +33,14 @@
 //   the next key only clears the message.
 // - CLEAR acts on release; held 3 s it "switches off" (screen blanks, stack kept).
 // - Auto-off after 5 minutes without a key. Any key wakes; that press is ignored.
-//   (Off is still simulated: the chip stays awake. Real Stop 2 sleep later.)
 // - At start-up the BCD maths checks itself against 422 cases computed with
 //   Python's decimal module; the result is printed to Serial Monitor.
 
 #include <Adafruit_GFX.h>
 #include <Adafruit_SharpMem.h>
 #include <vector>
+#include <SPI.h>
+#include <STM32LowPower.h>
 #include "bcd.h"
 #include "bcd_selftest.h"
 #include "fonts.h"
@@ -54,8 +63,8 @@ const int VALUE_MAX_W = WIDTH - 56;    // space left after the level label
 
 // ============================ Keypad =============================
 const uint8_t NUM_ROWS = 6, NUM_COLS = 4;
-const uint8_t ROW_PINS[NUM_ROWS] = {2, 3, 4, 5, 6, 7};
-const uint8_t COL_PINS[NUM_COLS] = {A0, A1, A2, A3};
+const uint32_t ROW_PINS[NUM_ROWS] = {PC6, PC7, PC8, PC9, PC10, PC11};
+const uint32_t COL_PINS[NUM_COLS] = {PC0, PC1, PC2, PC3};
 
 enum Key : int8_t {
   K_NONE = -1,
@@ -75,7 +84,8 @@ const int MULTI_KEY = -2;
 const unsigned long SCAN_MS = 5;
 const uint8_t DEBOUNCE_SCANS = 4;              // 20 ms
 const unsigned long CLEAR_OFF_MS = 3000;       // hold CLEAR to switch off
-const unsigned long AUTO_OFF_MS = 5UL * 60UL * 1000UL;   // 5 minutes
+const unsigned int AUTO_OFF_S = 5 * 60;                  // 5 minutes
+const uint32_t TICK_MS = 1000;                           // timed wake while on and idle
 
 // ============================ Calculator state ===================
 const size_t STACK_MAX = 1000;
@@ -91,7 +101,10 @@ bool isOff = false;
 // Key handling state
 int stableKey = K_NONE, lastRaw = K_NONE;
 uint8_t sameCount = 0;
-unsigned long lastScan = 0, pressStart = 0, lastKeyTime = 0, lastRefresh = 0;
+unsigned long lastScan = 0, pressStart = 0, lastRefresh = 0;
+unsigned int idleSeconds = 0;    // timed wakes since the last key (millis stops in Stop 2)
+volatile bool keyWoke = false;   // set by the column interrupt
+bool vcomBit = false;
 bool clearHoldHandled = false;   // CLEAR already switched off during this hold
 bool ignoreRelease = false;      // release of a key that only woke / cleared an error
 
@@ -355,7 +368,7 @@ void printStack() {
 // =================================================================
 
 void onKeyDown(int k) {
-  lastKeyTime = millis();
+  idleSeconds = 0;
   pressStart = millis();
   clearHoldHandled = false;
   ignoreRelease = false;
@@ -478,10 +491,98 @@ int runSelfTest() {
   return failures;
 }
 
+// =================================================================
+// Sleep
+// =================================================================
+
+void keyWakeISR() { keyWoke = true; }
+
+// The serial link is shut down while asleep and restarted only when needed,
+// so the once-a-second VCOM wake stays as short as possible.
+bool serialActive = true;
+
+void serialOff() {
+  if (!serialActive) return;
+  Serial.flush();                              // let pending text out first
+  Serial.end();
+  pinMode(PA2, INPUT_ANALOG);
+  pinMode(PA3, INPUT_ANALOG);
+  serialActive = false;
+}
+
+void serialOn() {
+  if (serialActive) return;
+  Serial.begin(115200);
+  serialActive = true;
+}
+
+// Toggle the display's VCOM without sending a frame: the Sharp "maintain"
+// command, two bytes, LSB first. Takes about 15 microseconds.
+void vcomToggle() {
+  vcomBit = !vcomBit;
+  SPI.beginTransaction(SPISettings(2000000, LSBFIRST, SPI_MODE0));
+  digitalWrite(SHARP_CS, HIGH);
+  delayMicroseconds(3);
+  SPI.transfer(vcomBit ? 0x02 : 0x00);
+  SPI.transfer(0x00);
+  delayMicroseconds(1);
+  digitalWrite(SHARP_CS, LOW);
+  SPI.endTransaction();
+}
+
+// Sleep in Stop 2 until a key (or, while on, the next one-second tick).
+void sleepUntilWake() {
+  for (uint8_t r = 0; r < NUM_ROWS; r++) {     // all rows low: any key pulls a column low
+    pinMode(ROW_PINS[r], OUTPUT);
+    digitalWrite(ROW_PINS[r], LOW);
+  }
+  keyWoke = false;
+
+  // Park the pins that would otherwise leak while asleep: the serial link to
+  // the ST-LINK (PA2, PA3) and the unused, floating SPI MISO (PA6).
+  serialOff();
+  pinMode(PA6, INPUT_ANALOG);
+
+  if (isOff) LowPower.deepSleep();             // off: only a key wakes it
+  else LowPower.deepSleep(TICK_MS);            // on: wake for VCOM and auto-off
+
+  for (uint8_t r = 0; r < NUM_ROWS; r++) pinMode(ROW_PINS[r], INPUT);   // back to scanning
+
+  if (keyWoke) {
+    serialOn();                                // serial back only when a key wakes it
+    sameCount = 0;                             // start debouncing the wake key at once
+    lastScan = 0;
+    return;
+  }
+  if (!isOff) {
+    vcomToggle();
+    if (++idleSeconds >= AUTO_OFF_S) {
+      serialOn();                              // switchOff prints a message
+      switchOff("auto-off");
+    }
+  }
+}
+
+// Put every pin this sketch doesn't use into analog mode. Floating digital
+// inputs (and PH0, which the Nucleo's ST-LINK feeds with an 8 MHz clock)
+// draw hundreds of microamps in Stop 2; analog mode cuts that to almost nothing.
+// Kept as they are: Serial (PA2, PA3), display SPI and CS (PA5, PA6, PA7, PB6),
+// SWD (PA13, PA14), keypad (PC0-PC3, PC6-PC11), 32 kHz crystal (PC14, PC15).
+void unusedPinsToAnalog() {
+  const uint32_t unused[] = {
+    PA0, PA1, PA4, PA8, PA9, PA10, PA11, PA12, PA15,
+    PB0, PB1, PB2, PB3, PB4, PB5, PB7, PB8, PB9, PB10, PB11, PB12, PB13, PB14, PB15,
+    PC4, PC5, PC12, PC13, PD2, PH0, PH1
+  };
+  for (uint32_t pin : unused) pinMode(pin, INPUT_ANALOG);
+}
+
 void setup() {
+  unusedPinsToAnalog();
+  HAL_DBGMCU_DisableDBGStopMode();             // debugger must not keep the chip awake in Stop
   Serial.begin(115200);
   delay(500);
-  Serial.println("RPN calculator, stage 3 (BCD maths, DejaVu fonts)");
+  Serial.println("RPN calculator, stage 4 (BCD maths, DejaVu fonts, Stop 2 sleep)");
 
   unsigned long t0 = millis();
   int failures = runSelfTest();
@@ -496,9 +597,12 @@ void setup() {
   for (uint8_t r = 0; r < NUM_ROWS; r++) pinMode(ROW_PINS[r], INPUT);
   for (uint8_t c = 0; c < NUM_COLS; c++) pinMode(COL_PINS[c], INPUT_PULLUP);
 
+  LowPower.begin();
+  for (uint8_t c = 0; c < NUM_COLS; c++)
+    LowPower.attachInterruptWakeup(COL_PINS[c], keyWakeISR, FALLING, DEEP_SLEEP_MODE);
+
   stack.reserve(64);
   display.begin();
-  lastKeyTime = millis();
   if (failures) showError("BCD self-test FAILED");
   drawScreen();
 }
@@ -531,12 +635,14 @@ void loop() {
     switchOff("CLEAR held");
   }
 
-  // Auto-off after 5 minutes without a key
-  if (!isOff && now - lastKeyTime >= AUTO_OFF_MS) switchOff("auto-off");
-
-  // Refresh about once a second so the library keeps toggling VCOM
-  if (now - lastRefresh >= 1000) {
-    display.refresh();
+  // While awake (a key held), keep VCOM toggling about once a second
+  if (!isOff && now - lastRefresh >= 1000) {
+    vcomToggle();
     lastRefresh = now;
+  }
+
+  // Nothing held and the keypad has settled: sleep until the next key or tick
+  if (stableKey == K_NONE && lastRaw == K_NONE && sameCount >= DEBOUNCE_SCANS) {
+    sleepUntilWake();
   }
 }
