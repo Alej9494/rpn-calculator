@@ -1,14 +1,18 @@
-// RPN_Stage1.ino
-// RPN calculator, stage 1: full behaviour from the spec, with floating-point
-// (double) maths. BCD maths, real sleep and PC-pin wiring come later.
+// RPN_Stage2.ino
+// RPN calculator, stage 2: same behaviour as stage 1, with exact 12-digit
+// decimal (BCD) maths in place of floating point. Real sleep and PC-pin
+// wiring come later.
+//
+// Sketch folder RPN_Stage2 must contain: RPN_Stage2.ino, bcd.h, bcd.cpp,
+// bcd_selftest.h (the tests folder is for the computer and is ignored).
 //
 // Hardware: Nucleo-L476RG, Adafruit 2.7" Sharp Memory breakout, 6 x 4 keypad.
 // Wiring (unchanged from the test sketches):
 //   Display: CLK -> D13, DI -> D11, CS -> D10, VIN -> 3V3 or 5V, GND -> GND
 //   Keypad:  rows R1-R6 -> D2-D7, columns C1-C4 -> A0-A3
 // Libraries: "Adafruit SHARP Memory Display" and "Adafruit GFX"
-// IMPORTANT: Tools -> C Runtime Library -> "Newlib Nano + Float Printf"
-// (number formatting uses printf with %e; without it numbers show blank).
+// The "Newlib Nano + Float Printf" setting is no longer needed: BCD does
+// its own formatting.
 //
 // Behaviour (HP 48 style):
 // - Typing goes on a command line at the bottom, left-justified; the stack
@@ -20,12 +24,15 @@
 //   the next key only clears the message.
 // - CLEAR acts on release; held 3 s it "switches off" (screen blanks, stack kept).
 // - Auto-off after 5 minutes without a key. Any key wakes; that press is ignored.
-//   (Stage 1 only simulates off: the chip stays awake. Real Stop 2 sleep later.)
+//   (Off is still simulated: the chip stays awake. Real Stop 2 sleep later.)
+// - At start-up the BCD maths checks itself against 422 cases computed with
+//   Python's decimal module; the result is printed to Serial Monitor.
 
 #include <Adafruit_GFX.h>
 #include <Adafruit_SharpMem.h>
-#include <math.h>
 #include <vector>
+#include "bcd.h"
+#include "bcd_selftest.h"
 
 // ============================ Display ============================
 #define SHARP_CS 10
@@ -71,11 +78,9 @@ const unsigned long AUTO_OFF_MS = 5UL * 60UL * 1000UL;   // 5 minutes
 
 // ============================ Calculator state ===================
 const size_t STACK_MAX = 1000;
-const double MAX_MAG = 9.99999999999e99;
-const double MIN_MAG = 1e-99;
 const uint8_t MAX_DIGITS = 12;
 
-std::vector<double> stack;       // stack.back() is level 1
+std::vector<BCD> stack;          // stack.back() is level 1
 bool entering = false;           // true while a number is on the command line
 char entry[24] = "";             // the command line, as typed (not on the stack yet)
 bool errorActive = false;
@@ -90,69 +95,11 @@ bool clearHoldHandled = false;   // CLEAR already switched off during this hold
 bool ignoreRelease = false;      // release of a key that only woke / cleared an error
 
 // =================================================================
-// Number formatting: 12 significant digits, trailing zeros removed,
-// thousands grouped, scientific when it won't fit in 12 digits.
+// Number formatting: done by bcdFormat (12 significant digits, trailing
+// zeros removed, thousands grouped, scientific when it won't fit).
 // =================================================================
 
-// Insert commas into a string of integer digits.
-void groupDigits(const char *digits, char *out) {
-  size_t n = strlen(digits);
-  size_t o = 0;
-  for (size_t i = 0; i < n; i++) {
-    out[o++] = digits[i];
-    size_t remaining = n - i - 1;
-    if (remaining > 0 && remaining % 3 == 0) out[o++] = ',';
-  }
-  out[o] = '\0';
-}
-
-void formatNumber(double v, char *out) {
-  if (v == 0 || fabs(v) < MIN_MAG) { strcpy(out, "0"); return; }
-
-  // Let printf round to 12 significant digits: d.dddddddddddE+xx
-  char sci[32];
-  snprintf(sci, sizeof(sci), "%.11e", fabs(v));
-  char digits[16];
-  int nd = 0;
-  const char *p = sci;
-  while (*p && *p != 'e') {
-    if (*p >= '0' && *p <= '9') digits[nd++] = *p;
-    p++;
-  }
-  digits[nd] = '\0';
-  int e = atoi(p + 1);
-  while (nd > 1 && digits[nd - 1] == '0') digits[--nd] = '\0';   // strip trailing zeros
-
-  char body[40];
-  if (e >= 0 && e < MAX_DIGITS) {
-    // Fixed: e+1 integer digits
-    char intPart[16], frac[16];
-    int intLen = e + 1;
-    for (int i = 0; i < intLen; i++) intPart[i] = (i < nd) ? digits[i] : '0';
-    intPart[intLen] = '\0';
-    int fracLen = (nd > intLen) ? nd - intLen : 0;
-    memcpy(frac, digits + intLen, fracLen);
-    frac[fracLen] = '\0';
-    char grouped[24];
-    groupDigits(intPart, grouped);
-    if (fracLen > 0) snprintf(body, sizeof(body), "%s.%s", grouped, frac);
-    else snprintf(body, sizeof(body), "%s", grouped);
-  } else if (e < 0 && (-e - 1 + nd) <= MAX_DIGITS) {
-    // Fixed small number: 0.000ddd
-    int zeros = -e - 1;
-    int o = 0;
-    body[o++] = '0';
-    body[o++] = '.';
-    for (int i = 0; i < zeros; i++) body[o++] = '0';
-    for (int i = 0; i < nd; i++) body[o++] = digits[i];
-    body[o] = '\0';
-  } else {
-    // Scientific: d.dddE-xx
-    if (nd > 1) snprintf(body, sizeof(body), "%c.%sE%d", digits[0], digits + 1, e);
-    else snprintf(body, sizeof(body), "%cE%d", digits[0], e);
-  }
-  snprintf(out, 40, "%s%s", (v < 0) ? "-" : "", body);
-}
+void formatNumber(const BCD &v, char *out) { bcdFormat(v, out); }
 
 // =================================================================
 // Drawing
@@ -188,7 +135,7 @@ void drawLabel(const char *label, int top) {
 }
 
 // Value at stack level n (1 = bottom). Returns false if that level is empty.
-bool levelValue(size_t n, double &v) {
+bool levelValue(size_t n, BCD &v) {
   if (stack.size() < n) return false;
   v = stack[stack.size() - n];
   return true;
@@ -215,7 +162,7 @@ void drawScreen() {
     char label[4];
     snprintf(label, sizeof(label), "%d:", level);
     drawLabel(label, LINE_TOP[line]);
-    double v;
+    BCD v;
     if (levelValue(level, v)) {
       char buf[40];
       formatNumber(v, buf);
@@ -232,8 +179,8 @@ void drawScreen() {
 // Stack helpers
 // =================================================================
 
-double peek(size_t n) {            // level n (1 = X), 0 if missing
-  double v = 0;
+BCD peek(size_t n) {               // level n (1 = bottom), 0 if missing
+  BCD v = bcdZero();
   levelValue(n, v);
   return v;
 }
@@ -248,11 +195,15 @@ void showError(const char *msg) {
   Serial.println(msg);
 }
 
-// Check a result; returns false (and shows an error) if it's out of range.
-bool checkResult(double &r) {
-  if (r != r || fabs(r) > MAX_MAG) { showError("Overflow"); return false; }   // NaN or too big (incl. infinity)
-  if (fabs(r) < MIN_MAG) r = 0;
-  return true;
+// Show the error for a failed BCD operation. Returns true if it succeeded.
+bool checkStatus(BcdStatus st) {
+  switch (st) {
+    case BCD_OK: return true;
+    case BCD_OVERFLOW: showError("Overflow"); return false;
+    case BCD_DIV_ZERO: showError("Error: divide by 0"); return false;
+    case BCD_NEG_SQRT: showError("Error: sqrt of negative"); return false;
+    default: showError("Error: bad number"); return false;
+  }
 }
 
 // Push the command line onto the stack. Returns false if the stack is full.
@@ -261,11 +212,13 @@ bool commitEntry() {
   entering = false;
   bool hasDigit = false;
   for (const char *p = entry; *p; p++) if (*p >= '0' && *p <= '9') hasDigit = true;
-  double v = atof(entry);
+  BCD v;
+  BcdStatus st = hasDigit ? bcdFromString(entry, v) : BCD_OK;
   entry[0] = '\0';
   if (!hasDigit) return true;                           // "-" or "." alone: discard
+  if (!checkStatus(st)) return false;
   if (stack.size() >= STACK_MAX) { showError("Stack full"); return false; }
-  stack.push_back(v == 0 ? 0 : v);
+  stack.push_back(v);
   return true;
 }
 
@@ -319,7 +272,7 @@ void keyNeg() {
     else { memmove(entry + 1, entry, strlen(entry) + 1); entry[0] = '-'; }
     return;
   }
-  if (!stack.empty() && stack.back() != 0) stack.back() = -stack.back();
+  if (!stack.empty()) stack.back() = bcdNegate(stack.back());
 }
 
 void keyBack() {
@@ -339,34 +292,30 @@ void keySwap() {
   if (!commitEntry()) return;
   size_t n = stack.size();
   if (n == 0) return;
-  if (n == 1) stack.insert(stack.begin(), 0.0);        // missing level 2 counts as 0
+  if (n == 1) stack.insert(stack.begin(), bcdZero());  // missing level 2 counts as 0
   std::swap(stack[stack.size() - 1], stack[stack.size() - 2]);
 }
 
 void keyBinary(Key k) {
   if (!commitEntry()) return;
-  double x = peek(1), y = peek(2), r = 0;
+  BCD x = peek(1), y = peek(2), r;
+  BcdStatus st;
   switch (k) {
-    case K_ADD: r = y + x; break;
-    case K_SUB: r = y - x; break;
-    case K_MUL: r = y * x; break;
-    case K_DIV:
-      if (x == 0) { showError("Error: divide by 0"); return; }
-      r = y / x;
-      break;
+    case K_ADD: st = bcdAdd(y, x, r); break;
+    case K_SUB: st = bcdSub(y, x, r); break;
+    case K_MUL: st = bcdMul(y, x, r); break;
+    case K_DIV: st = bcdDiv(y, x, r); break;
     default: return;
   }
-  if (!checkResult(r)) return;                          // stack untouched on error
+  if (!checkStatus(st)) return;                         // stack untouched on error
   dropLevels(2);
   stack.push_back(r);
 }
 
 void keySqrt() {
   if (!commitEntry()) return;
-  double x = peek(1);
-  if (x < 0) { showError("Error: sqrt of negative"); return; }
-  double r = sqrt(x);
-  if (!checkResult(r)) return;
+  BCD r;
+  if (!checkStatus(bcdSqrt(peek(1), r))) return;
   if (stack.empty()) stack.push_back(r);
   else stack.back() = r;
 }
@@ -482,11 +431,63 @@ int scanMatrix() {
 }
 
 // =================================================================
+// Start-up self-test: re-run a sample of the computer test cases on the
+// Nucleo, to confirm the BCD maths behaves the same on the ARM chip.
+// =================================================================
+
+int runSelfTest() {
+  int failures = 0;
+  for (int i = 0; i < BCD_CASE_COUNT; i++) {
+    const BcdCase &c = BCD_CASES[i];
+    char got[40];
+    BCD a, b, r = bcdZero();
+    BcdStatus st = bcdFromString(c.a, a);
+    if (c.b) bcdFromString(c.b, b);
+    if (c.op != 'p') st = BCD_OK;
+    switch (c.op) {
+      case '+': st = bcdAdd(a, b, r); break;
+      case '-': st = bcdSub(a, b, r); break;
+      case '*': st = bcdMul(a, b, r); break;
+      case '/': st = bcdDiv(a, b, r); break;
+      case 'r': st = bcdSqrt(a, r); break;
+      case 'p': r = a; break;
+      case 'f': break;
+    }
+    if (c.op == 'f') bcdFormat(a, got);
+    else if (st == BCD_OK) bcdToSci(r, got);
+    else strcpy(got, st == BCD_OVERFLOW ? "OVF" : st == BCD_DIV_ZERO ? "DIV0"
+                     : st == BCD_NEG_SQRT ? "NEGSQRT" : "BADINPUT");
+    if (strcmp(got, c.expect) != 0) {
+      failures++;
+      Serial.print("  FAIL ");
+      Serial.print(c.op);
+      Serial.print(' ');
+      Serial.print(c.a);
+      Serial.print(' ');
+      Serial.print(c.b ? c.b : "");
+      Serial.print(" expected ");
+      Serial.print(c.expect);
+      Serial.print(" got ");
+      Serial.println(got);
+    }
+  }
+  return failures;
+}
 
 void setup() {
   Serial.begin(115200);
   delay(500);
-  Serial.println("RPN calculator, stage 1 (floating point)");
+  Serial.println("RPN calculator, stage 2 (12-digit BCD)");
+
+  unsigned long t0 = millis();
+  int failures = runSelfTest();
+  Serial.print("BCD self-test: ");
+  Serial.print(BCD_CASE_COUNT - failures);
+  Serial.print("/");
+  Serial.print(BCD_CASE_COUNT);
+  Serial.print(" passed in ");
+  Serial.print(millis() - t0);
+  Serial.println(" ms");
 
   for (uint8_t r = 0; r < NUM_ROWS; r++) pinMode(ROW_PINS[r], INPUT);
   for (uint8_t c = 0; c < NUM_COLS; c++) pinMode(COL_PINS[c], INPUT_PULLUP);
@@ -494,6 +495,7 @@ void setup() {
   stack.reserve(64);
   display.begin();
   lastKeyTime = millis();
+  if (failures) showError("BCD self-test FAILED");
   drawScreen();
 }
 

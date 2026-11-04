@@ -14,3 +14,7 @@ fp-info-cache
 _autosave-*
 # OS
 .DS_Store
+
+# BCD test outputs (regenerated)
+firmware/rpn_calculator/tests/vectors.txt
+firmware/rpn_calculator/tests/bcd_test
