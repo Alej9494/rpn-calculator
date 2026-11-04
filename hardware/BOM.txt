@@ -1,0 +1,105 @@
+RPN CALCULATOR - BILL OF MATERIALS
+Rev C draft, 2 Nov 2026. Matches the full schematic (rev C).
+USB-C is for firmware updates. While plugged in, the LDO powers the calculator
+through Q2 and Q1 disconnects the coin cell; otherwise the cell feeds VDD via Q1.
+Rev C: five 3.3 V buffers (U6-U10, powered by U5 from 5V_DISP) drive the
+panel, which needs a logic high of at least 2.7 V. EXTMODE goes to 5V_DISP.
+Parts marked * are candidates: check datasheet and stock before ordering.
+Passives are 0805 unless noted. Use 1% resistors throughout.
+
+=====================================================================
+FINAL PCB
+=====================================================================
+
+ICs
+Ref    Qty  Part                               Package        Notes
+U1     1    STM32L476RGT6                      LQFP-64        MCU, same as Nucleo
+U2     1    MCP1640 boost converter *          SOT-23-6       5V for display; variant with true load disconnect
+U3     1    MCP1700-3302E LDO 3.3V *           SOT-23         VDDUSB only, during updates
+U4     1    USBLC6-2SC6 USB ESD protection     SOT-23-6
+U5     1    MCP1700T-3302E/TT LDO 3.3V         SOT-23         3V3_DISP for the buffers, from 5V_DISP (same part as U3)
+U6-U10 5    SN74LV1T34DBVR single buffer       SOT-23-5       MCU to panel at 3.3 V; pinout 1 NC, 2 A, 3 GND, 4 Y, 5 VCC
+
+DISPLAY
+DISP1  1    Sharp LS027B7DH01 2.7" Memory LCD  FPC            400 x 240, 5V supply, logic high >= 2.7 V
+                                                              Zero-defect grade; same as LS027B7DH01A (up to 2 defects)
+                                                              A = up to 2 defective pixels allowed, else same as non-A
+J1     1    Wurth 687110183622 FPC connector   SMD            10-pin, 0.5 mm, top contact, ZIF, 1.2 mm high
+                                                              Replaces obsolete SMK CFP-4510-0150F. FPC 5.5 mm wide,
+                                                              0.29-0.34 mm thick. Pads 0.30 x 1.0 mm, tabs 1.65 x 1.30 mm
+
+CONNECTORS AND POWER
+J2     1    GCT USB4085-GF-A USB-C             THT            Updates; powers the board while plugged in
+                                                              16-pin USB 2.0, 5 A, fully through-hole. SBU (A8/B8) not connected.
+                                                              Footprint per GCT drawing rev B: 0.40 mm holes / 0.65 mm pads,
+                                                              0.85 mm pitch; slots 2.10 and 1.40 x 0.60 mm. On 1.6 mm PCB pins
+                                                              end flush, rear stakes protrude, front stakes solder from top
+J3     1    Pin header 1x6, 2.54 mm            THT            SWD, Nucleo ST-LINK CN4 order
+BT1    1    CR2032 holder, SMD (Keystone 1058)  SMD           Mechanically rejects a reversed cell
+                                                              2 pads 3.51 x 2.54 mm, 31.90 mm span; 5.08 mm tall
+Q1,Q2  2    DMG2305UX P-channel MOSFET         SOT-23         1 G, 2 S, 3 D. Q1: cell to VDD, off while USB plugged in
+                                                              Q2: wired as a low-leakage diode, 3V3_USB to VDD (G+S to VDD)
+-      1    CR2032 coin cell
+
+CRYSTALS
+Y1     1    Micro Crystal CM8V-T1A 32.768 kHz  SMD 2.0x1.2    4 pF load, 20 ppm. Bootloader USB clock (via MSI) and RTC
+                                                              AN2867 gmcrit 0.41 uA/V: starts at the L476's low drive
+Y2     -    8 MHz crystal (NOT FITTED)         SMD            Empty footprint; fit only if USB updates fail with Y1
+
+INDUCTOR AND FERRITE
+L1     1    4.7 uH inductor *                  SMD            Per MCP1640 datasheet; check current rating
+FB1    1    Ferrite bead                       0805           VDDA filter
+
+RESISTORS
+R1,R2  2    5.1 k                              0805           USB-C CC1/CC2 pull-downs
+R3     1    10 k                               0805           BOOT0 pull-down
+R4,R5  2    100 k                              0805           VBUS sense divider
+R6     1    976 k  1% (E96)                    0805           Boost feedback, top
+R7     1    309 k  1% (E96)                    0805           Boost feedback, bottom
+R8     1    100 k                              0805           Boost EN pull-down
+R9     1    100 k                              0805           3V3_USB pull-down (VDDUSB at 0 V unplugged)
+R10-R12 3   100 k                              0805           Pull-downs on PA10, PA3, PC11 (unused bootloader RX pins)
+
+CAPACITORS (X7R/X5R ceramic, 16 V or higher on VBUS, 10 V or higher elsewhere)
+C3     1    10 uF                              0805           VDD bulk, at the coin cell
+C4     1    1 uF                               0805           LDO input (VBUS)
+C5     1    1 uF                               0805           LDO output (3V3_USB)
+C6     1    4.7 uF                             0805           Boost input
+C7     1    22 uF, 10 V or higher                0805           Boost output (5V_DISP); MCP1640 needs >= 10 uF effective at 5 V
+C8-C11 4    100 nF                             0805           VDD pins 19, 32, 64 and VBAT pin 1
+C13    1    100 nF                             0805           VDDUSB pin 48
+C14    1    100 nF                             0805           VDDA pin 13
+C15    1    1 uF                               0805           VDDA pin 13
+C16,C17 -   Load caps for Y2 (NOT FITTED)      0805           Only with Y2: about 2 x (CL - 5 pF), within 5-20 pF
+C18    1    100 nF                             0805           NRST
+C19,C20 2   3.9 pF C0G, +/-0.25 pF                0805           Y1 load caps: 2 x (4 pF - stray); trim at bring-up
+C21,C22 2   1 uF                               0805           At J1 pins 6 and 7
+C23    1    1 uF                               0805           U5 input (5V_DISP)
+C24    1    1 uF                               0805           U5 output (3V3_DISP)
+C25-C29 5   100 nF                             0805           One at each buffer VCC, U6-U10
+(C1, C2 and C12 are not used)
+
+SWITCHES AND KEYS
+SW1-SW22  22  Kailh Choc V1 switch             THT            Keypad (already bought)
+STAB1     1   Kailh Choc stabiliser            -              3-wide Enter
+-         21  Choc keycap, 1u                  -
+-         1   Choc keycap, 3u                  -              Rare; may need custom or 3D-printed
+SW23      1   Tactile button, top-actuated     SMD            Recovery (BOOT0), behind 1 mm case pinhole
+SW24      1   Tactile button                   SMD            Internal reset
+
+MECHANICAL
+-      1    PCB, 2-layer, bare board           -              About 80 x 165 mm
+-      6    M2 standoffs + screws              -              Height to suit enclosure
+-      1    Enclosure                          -              3D-printed case
+
+TOTALS (final PCB)
+Unique electronic parts, approx.: 32
+Placed components, approx.: 93 (incl. 22 keyswitches)
+
+=====================================================================
+PROTOTYPE (already in hand)
+=====================================================================
+-      1    STM32 Nucleo-L476RG dev board
+-      1    Adafruit 2.7" Sharp Memory Display breakout (4694)
+-      22   Low-cost tactile switches for the perfboard keypad
+-      1    Perfboard, header pins, hook-up wire, jumper leads

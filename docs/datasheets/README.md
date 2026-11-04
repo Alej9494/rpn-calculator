@@ -10,8 +10,8 @@
 | Microchip MCP1640 | Boost regulator | `MCP1640.pdf` |
 | Coilcraft LPS4018 | Shielded power inductor | `Coilcraft-LPS4018.pdf` |
 | Microchip MCP1700 | Low-quiescent LDO | `MCP1700.pdf` |
-| Nexperia BAT54C | Dual Schottky diode, common cathode | `BAT54C.pdf` |
+| Nexperia BAT54C | Dual Schottky diode, common cathode (considered, not used: replaced by Q2) | `BAT54C.pdf` |
 | Diodes DMG2305UX | P-channel MOSFET | `DMG2305UX.pdf` |
-| AOS AO3400 | N-channel MOSFET | `AO3400.pdf` |
+| AOS AO3400 | N-channel MOSFET (considered, not used) | `AO3400.pdf` |
 | ST USBLC6-2 | USB ESD protection | `USBLC6-2.pdf` |
 | GCT USB4085 | USB-C receptacle (spec and drawing) | `GCT-USB4085-spec.pdf`, `GCT-USB4085-drawing.pdf` |

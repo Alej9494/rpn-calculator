@@ -1,0 +1,28 @@
+Manufacturer Part Number,Manufacturer,Quantity,Qty per board,Customer Reference,Description,Check before ordering
+STM32L476RGT6,STMicroelectronics,1,1,U1,"MCU, LQFP-64",
+LS027B7DH01,Sharp Microelectronics,1,1,DISP1,Memory LCD 2.7in 400x240,Zero-defect grade (A version allows up to 2); Digi-Key 5054066
+687110183622,Wurth Elektronik,2,1,J1,"FPC connector 10-pin 0.5 mm, top contact, ZIF, 1.2 mm high",Replaces obsolete SMK CFP-4510-0150F; panel FPC must be 0.29-0.34 mm thick
+MCP1640T-I/CHY,Microchip,1,1,U2,"Boost converter 5V for display, SOT-23-6, true output disconnect",
+MCP1700T-3302E/TT,Microchip,3,2,"U3,U5","LDO 3.3V, SOT-23: U3 feeds VDDUSB and, via D1, VDD during updates; U5 makes 3V3_DISP for the display buffers",
+DMG2305UX-7,Diodes Incorporated,4,2,"Q1,Q2","P-channel MOSFET 20 V, SOT-23: Q1 coin cell to VDD; Q2 wired as a low-leakage diode from 3V3_USB to VDD",Pins 1 G / 2 S / 3 D (checked)
+USBLC6-2SC6,STMicroelectronics,1,1,U4,"USB ESD protection, SOT-23-6",
+SN74LV1T34DBVR,Texas Instruments,8,5,"U6,U7,U8,U9,U10","Single buffer, 1.65-5.5 V, low-threshold inputs, SOT-23-5","Datasheet checked: inputs 5 V tolerant powered or not; pin 1 NC, 2 A, 3 GND, 4 Y, 5 VCC"
+USB4085-GF-A,GCT,2,1,J2,"USB-C receptacle 16-pin USB 2.0, through hole, right angle",Check stock; footprint checked against GCT drawing rev B
+PRPC006SAAN-RC,Sullins,1,1,J3,"Header 1x6 2.54 mm, SWD",Any 1x6 2.54 mm header will do
+1058,Keystone Electronics,1,1,BT1,"CR2032 holder SMD, mechanically rejects a reversed cell","Footprint per Keystone drawing 1058: 2 pads 3.51 x 2.54 mm, 31.90 mm span; 5.08 mm tall"
+CR2032,Panasonic,2,1,-,CR2032 coin cell,
+CM8V-T1A-32.768KHZ-4PF-20PPM-TA-QC,Micro Crystal AG,3,1,Y1,"Crystal 32.768 kHz, 4 pF load, 20 ppm, 2.0 x 1.2 mm SMD",Listed in ST AN2867 for STM32 low drive (gmcrit 0.41 uA/V)
+LPS4018-472MRB,Coilcraft,2,1,L1,Inductor 4.7 uH,Check saturation current against MCP1640 datasheet
+BLM21PG221SN1D,Murata,5,1,FB1,Ferrite bead 0805,
+RC0805FR-075K1L,Yageo,10,2,"R1,R2",Resistor 5.1k 1% 0805,
+RC0805FR-0710KL,Yageo,10,1,R3,Resistor 10k 1% 0805,
+RC0805FR-07100KL,Yageo,10,7,"R4,R5,R8,R9,R10,R11,R12",Resistor 100k 1% 0805,
+RC0805FR-07976KL,Yageo,10,1,R6,Resistor 976k 1% 0805,Skip if using your E96 kit
+RC0805FR-07309KL,Yageo,10,1,R7,Resistor 309k 1% 0805,Skip if using your E96 kit
+CL21B104KBCNNNC,Samsung,20,12,"C8,C9,C10,C11,C13,C14,C18,C25,C26,C27,C28,C29",Capacitor 100nF 50V X7R 0805,
+CL21B105KAFNNNE,Samsung,10,7,"C4,C5,C15,C21,C22,C23,C24",Capacitor 1uF 25V X7R 0805,
+CL21A475KAQNNNE,Samsung,10,1,C6,Capacitor 4.7uF 25V X5R 0805,
+CL21A106KAYNNNE,Samsung,10,1,C3,Capacitor 10uF 25V X5R 0805,
+CL21A226MAQNNNE,Samsung,10,1,C7,"Capacitor 22uF 25V X5R 0805, boost output",Check stock; any 22 uF 0805 X5R rated 10 V or higher
+,,10,2,"C19,C20","Capacitor 3.9 pF C0G +/-0.25 pF 0805, Y1 load caps",Any 3.9 pF C0G 0805; fill in a part number
+B3U-1000P,Omron,4,2,"SW23,SW24","Tactile switch SMD, top-actuated: SW23 recovery (BOOT0) behind 1 mm case pinhole, SW24 internal reset",Check SW23 plunger height reaches the case pinhole

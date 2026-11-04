@@ -40,7 +40,7 @@ A simple hardware RPN calculator, with a matching phone web app. Both must behav
 
 ## Hardware
 - MCU: STM32L476 (prototyped on a Nucleo L476RG)
-- Display: Sharp Memory LCD 2.7" (Adafruit board for the prototype)
+- Display: Sharp LS027B7DH01 2.7" Memory LCD, zero-defect grade (Adafruit board for the prototype)
 - Font: DejaVu Sans Condensed Bold, status line included
 - Keys: Kailh Choc V1 for the final build; cheaper buttons for the prototype
 - 3-wide Enter key with a stabiliser and one centre switch
@@ -52,9 +52,8 @@ A simple hardware RPN calculator, with a matching phone web app. Both must behav
 - Working on the Nucleo: display, keypad, BCD maths, real sleep and auto-off
 - Next: a full-circuit prototype using a 64-pin LQFP breakout for the STM32, SOT-23 adapter boards, and the existing perfboard keypad on a header, before committing to the keypad PCB
 
+## Hardware details
+The full hardware design (pin map, netlist, power path, BOM, test plan) is in the live spec, and the circuit is in the one-sheet Full Schematic; links are in `CLAUDE.md`. BOMs are in `hardware/`.
+
 ## Open items
-- Pin map
-- Power budget and CR2032 peak-current check
-- USB-C / battery power path
-- Key matrix layout
-- BOM
+Tracked in the spec's "Still to check or do": panel ribbon thickness for J1, SW23 height, stabiliser fit, C19/C20 part number, Enter keycap, Nucleo bootloader ID, then KiCad capture, PCB layout and the firmware port to the PCB pin map.
