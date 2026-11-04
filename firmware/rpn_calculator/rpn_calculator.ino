@@ -1,10 +1,11 @@
-// RPN_Stage2.ino
-// RPN calculator, stage 2: same behaviour as stage 1, with exact 12-digit
-// decimal (BCD) maths in place of floating point. Real sleep and PC-pin
-// wiring come later.
+// RPN_Stage3.ino
+// RPN calculator, stage 3: stage 2 (exact 12-digit BCD maths) with proper
+// fonts: DejaVu Sans Condensed Bold throughout, with equal-width digits and
+// a true minus sign.
+// Real sleep and PC-pin wiring come later.
 //
-// Sketch folder RPN_Stage2 must contain: RPN_Stage2.ino, bcd.h, bcd.cpp,
-// bcd_selftest.h (the tests folder is for the computer and is ignored).
+// Sketch folder RPN_Stage3 must contain: RPN_Stage3.ino, bcd.h, bcd.cpp,
+// bcd_selftest.h, fonts.h.
 //
 // Hardware: Nucleo-L476RG, Adafruit 2.7" Sharp Memory breakout, 6 x 4 keypad.
 // Wiring (unchanged from the test sketches):
@@ -33,6 +34,7 @@
 #include <vector>
 #include "bcd.h"
 #include "bcd_selftest.h"
+#include "fonts.h"
 
 // ============================ Display ============================
 #define SHARP_CS 10
@@ -49,7 +51,6 @@ const int LINE_TOP[4] = {24, 78, 132, 186};
 const int VALUE_RIGHT = WIDTH - 8;     // right edge for numbers
 const int VALUE_LEFT = 8;              // left edge for the command line
 const int VALUE_MAX_W = WIDTH - 56;    // space left after the level label
-const int VALUE_SIZE = 4;              // largest text size; shrinks to fit
 
 // ============================ Keypad =============================
 const uint8_t NUM_ROWS = 6, NUM_COLS = 4;
@@ -105,32 +106,35 @@ void formatNumber(const BCD &v, char *out) { bcdFormat(v, out); }
 // Drawing
 // =================================================================
 
-// Largest built-in font size (from maxSize down) whose text fits maxW.
-int fitSize(const char *text, int maxSize, int maxW) {
-  int16_t bx, by;
-  uint16_t bw, bh;
-  for (int size = maxSize; size >= 1; size--) {
-    display.setTextSize(size);
-    display.getTextBounds(text, 0, 0, &bx, &by, &bw, &bh);
-    if (bw <= maxW) return size;
+// Width of text in a font: the sum of each character's advance.
+int textWidth(const GFXfont *f, const char *text) {
+  int w = 0;
+  for (const char *p = text; *p; p++) {
+    uint8_t c = *p;
+    if (c >= f->first && c <= f->last) w += f->glyph[c - f->first].xAdvance;
   }
-  return 1;
+  return w;
 }
 
+// A number on one of the four lines: big font, or medium if it won't fit.
 void drawValue(const char *text, int top, bool leftAlign) {
-  int size = fitSize(text, VALUE_SIZE, VALUE_MAX_W);
-  int16_t bx, by;
-  uint16_t bw, bh;
-  display.setTextSize(size);
-  display.getTextBounds(text, 0, 0, &bx, &by, &bw, &bh);
-  int x = leftAlign ? VALUE_LEFT : VALUE_RIGHT - bw;
-  display.setCursor(x, top + (LINE_H - 8 * size) / 2);
+  const GFXfont *f = &CalcBig;
+  int digitH = CALCBIG_DIGIT_H;
+  int w = textWidth(f, text);
+  if (w > VALUE_MAX_W) {
+    f = &CalcMedium;
+    digitH = CALCMEDIUM_DIGIT_H;
+    w = textWidth(f, text);
+  }
+  display.setFont(f);
+  int x = leftAlign ? VALUE_LEFT : VALUE_RIGHT - w;
+  display.setCursor(x, top + (LINE_H + digitH) / 2);   // cursor y is the baseline
   display.print(text);
 }
 
 void drawLabel(const char *label, int top) {
-  display.setTextSize(2);
-  display.setCursor(8, top + (LINE_H - 16) / 2);
+  display.setFont(&CalcLabel);
+  display.setCursor(8, top + (LINE_H + CALCLABEL_DIGIT_H) / 2);
   display.print(label);
 }
 
@@ -150,8 +154,8 @@ void drawScreen() {
   char status[32];
   if (errorActive) snprintf(status, sizeof(status), "%s", errorMsg);
   else snprintf(status, sizeof(status), "%u on stack", (unsigned)stack.size());
-  display.setTextSize(2);
-  display.setCursor(8, 4);
+  display.setFont(&CalcLabel);
+  display.setCursor(8, 4 + CALCLABEL_DIGIT_H);
   display.print(status);
   display.drawFastHLine(0, ROW_STATUS_H - 1, WIDTH, BLACK);
 
@@ -477,7 +481,7 @@ int runSelfTest() {
 void setup() {
   Serial.begin(115200);
   delay(500);
-  Serial.println("RPN calculator, stage 2 (12-digit BCD)");
+  Serial.println("RPN calculator, stage 3 (BCD maths, DejaVu fonts)");
 
   unsigned long t0 = millis();
   int failures = runSelfTest();
