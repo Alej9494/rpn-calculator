@@ -51,7 +51,7 @@ L1     1    Wurth 74404042047, 4.7 uH          4 x 4 mm SMD   WE-LQS, semi-shiel
 FB1    1    Ferrite bead                       0805           VDDA filter
 
 RESISTORS
-R1,R2  2    5.1 k                              0805           USB-C CC1/CC2 pull-downs
+R1,R2  2    5.1 k                              0805           USB-C CC1/CC2 pull-downs. From own stock, not on the Digi-Key order; 5.11 k (E96) is fine, the USB-C spec allows 5.1 k +/-20%
 R3     1    10 k                               0805           BOOT0 pull-down
 R4,R5  2    100 k                              0805           VBUS sense divider
 R6     1    976 k  1% (E96)                    0805           Boost feedback, top
@@ -61,11 +61,11 @@ R9     1    100 k                              0805           3V3_USB pull-down 
 R10-R12 3   100 k                              0805           Pull-downs on PA10, PA3, PC11 (unused bootloader RX pins)
 
 CAPACITORS (X7R/X5R ceramic, 16 V or higher on VBUS, 10 V or higher elsewhere)
-C3     1    10 uF                              0805           VDD bulk, at the coin cell
+C3     1    10 uF 25V X5R, TDK C3216X5R1E106K160AB  1206      VDD bulk, at the coin cell. NOTE: 1206, not 0805
 C4     1    1 uF                               0805           LDO input (VBUS)
 C5     1    1 uF                               0805           LDO output (3V3_USB)
 C6     1    4.7 uF                             0805           Boost input
-C7     1    22 uF, 10 V or higher                0805           Boost output (5V_DISP); MCP1640 needs >= 10 uF effective at 5 V
+C7     1    22 uF 16V X5R, Samsung CL21A226MOQNNNE  0805      Boost output (5V_DISP); MCP1640 needs >= 10 uF effective at 5 V
 C8-C11 4    100 nF                             0805           VDD pins 19, 32, 64 and VBAT pin 1
 C13    1    100 nF                             0805           VDDUSB pin 48
 C14    1    100 nF                             0805           VDDA pin 13
