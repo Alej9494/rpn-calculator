@@ -15,6 +15,16 @@ A simple hardware RPN calculator, with a matching phone web app. Both must behav
 - Separate Backspace and Drop keys
 - No EEX key
 
+## Screen
+- 400 × 240 Sharp Memory LCD: a status line (stack depth or error message on the left, battery icon on the right), then 4 equal lines
+- Not typing: levels 4–1, numbers right-justified. Typing: levels 3–1, with the command line left-justified at the bottom
+- Numbers: 12 significant digits, thousands grouped with commas, scientific notation when they don't fit, true minus sign
+- Battery icon: 3, 2, 1 bars, then an empty outline with "!" when low; the supply is measured against VREFINT, with no extra parts
+
+![Screen font preview](images/screen-font-preview.png)
+
+![Battery icon levels](images/battery-icon-levels.png)
+
 ## Power and sleep
 - CR2032 coin cell
 - No On/Off key: auto-off after 5 minutes, with the stack kept in RAM
