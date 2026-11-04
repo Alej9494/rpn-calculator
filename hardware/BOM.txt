@@ -37,7 +37,7 @@ J2     1    GCT USB4085-GF-A USB-C             THT            Updates; powers th
 J3     1    Pin header 1x6, 2.54 mm            THT            SWD, Nucleo ST-LINK CN4 order
 BT1    1    CR2032 holder, SMD (Keystone 1058)  SMD           Mechanically rejects a reversed cell
                                                               2 pads 3.51 x 2.54 mm, 31.90 mm span; 5.08 mm tall
-Q1,Q2  2    DMG2305UX P-channel MOSFET         SOT-23         1 G, 2 S, 3 D. Q1: cell to VDD, off while USB plugged in
+Q1,Q2  2    DMG2305UX-13 P-channel MOSFET      SOT-23         1 G, 2 S, 3 D. Order -13 (-7 out of stock; same part, larger reel). Q1: cell to VDD, off while USB plugged in
                                                               Q2: wired as a low-leakage diode, 3V3_USB to VDD (G+S to VDD)
 -      1    CR2032 coin cell
 

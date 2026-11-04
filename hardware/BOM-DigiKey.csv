@@ -4,7 +4,7 @@ LS027B7DH01,Sharp Microelectronics,1,1,DISP1,Memory LCD 2.7in 400x240,Zero-defec
 687110183622,Wurth Elektronik,2,1,J1,"FPC connector 10-pin 0.5 mm, top contact, ZIF, 1.2 mm high",Replaces obsolete SMK CFP-4510-0150F; panel FPC must be 0.29-0.34 mm thick
 MCP1640T-I/CHY,Microchip,1,1,U2,"Boost converter 5V for display, SOT-23-6, true output disconnect",
 MCP1700T-3302E/TT,Microchip,3,2,"U3,U5","LDO 3.3V, SOT-23: U3 feeds VDDUSB and, via D1, VDD during updates; U5 makes 3V3_DISP for the display buffers",
-DMG2305UX-7,Diodes Incorporated,4,2,"Q1,Q2","P-channel MOSFET 20 V, SOT-23: Q1 coin cell to VDD; Q2 wired as a low-leakage diode from 3V3_USB to VDD",Pins 1 G / 2 S / 3 D (checked)
+DMG2305UX-13,Diodes Incorporated,4,2,"Q1,Q2","P-channel MOSFET 20 V, SOT-23: Q1 coin cell to VDD; Q2 wired as a low-leakage diode from 3V3_USB to VDD",Pins 1 G / 2 S / 3 D (checked)
 USBLC6-2SC6,STMicroelectronics,1,1,U4,"USB ESD protection, SOT-23-6",
 SN74LV1T34DBVR,Texas Instruments,8,5,"U6,U7,U8,U9,U10","Single buffer, 1.65-5.5 V, low-threshold inputs, SOT-23-5","Datasheet checked: inputs 5 V tolerant powered or not; pin 1 NC, 2 A, 3 GND, 4 Y, 5 VCC"
 USB4085-GF-A,GCT,2,1,J2,"USB-C receptacle 16-pin USB 2.0, through hole, right angle",Check stock; footprint checked against GCT drawing rev B
