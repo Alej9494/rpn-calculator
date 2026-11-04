@@ -1,16 +1,21 @@
-// RPN_Stage4.ino
-// RPN calculator, stage 4: stage 3 (BCD maths, DejaVu fonts) with real sleep.
-// Between key presses the chip is in Stop 2 (a few microamps) with the stack
-// kept in RAM. Any key wakes it.
+// RPN_Stage5.ino
+// RPN calculator, stage 5: stage 4 (BCD maths, DejaVu fonts, Stop 2 sleep)
+// with a battery indicator. The chip measures its own supply voltage against
+// its internal reference (VREFINT) and shows a battery icon on the right of
+// the status line. No extra parts are needed.
 //
-// Sketch folder RPN_Stage4 must contain: RPN_Stage4.ino, bcd.h, bcd.cpp,
+// Sketch folder RPN_Stage5 must contain: RPN_Stage5.ino, bcd.h, bcd.cpp,
 // bcd_selftest.h, fonts.h.
+//
+// On the Nucleo the supply is a steady 3.3 V, so the icon shows full. To see
+// the other levels, raise the BATT_ thresholds below for a test upload.
 //
 // Hardware: Nucleo-L476RG, Adafruit 2.7" Sharp Memory breakout, 6 x 4 keypad.
 // Wiring:
 //   Display: CLK -> D13, DI -> D11, CS -> D10, VIN -> 3V3 or 5V, GND -> GND
 //   Keypad rows R1-R6:    PC6 (CN10-4), PC7 (CN10-19), PC8 (CN10-2),
-//                         PC9 (CN10-1), PC10 (CN7-1), PC11 (CN7-2)
+//                         PC9 (CN10-1), PC10 (CN7-1), PC12 (CN7-3)
+//   (ROW6 moved off PC11: ST's bootloader listens on PC11 as USART3 RX)
 //   Keypad columns C1-C4: PC0 (CN7-38), PC1 (CN7-36), PC2 (CN7-35), PC3 (CN7-37)
 //   (the same pins as the PCB; each column has its own wake-up line)
 // Libraries: "Adafruit SHARP Memory Display", "Adafruit GFX",
@@ -44,6 +49,7 @@
 #include "bcd.h"
 #include "bcd_selftest.h"
 #include "fonts.h"
+#include "stm32yyxx_ll_adc.h"             // VREFINT calibration maths
 
 // ============================ Display ============================
 #define SHARP_CS 10
@@ -63,7 +69,7 @@ const int VALUE_MAX_W = WIDTH - 56;    // space left after the level label
 
 // ============================ Keypad =============================
 const uint8_t NUM_ROWS = 6, NUM_COLS = 4;
-const uint32_t ROW_PINS[NUM_ROWS] = {PC6, PC7, PC8, PC9, PC10, PC11};
+const uint32_t ROW_PINS[NUM_ROWS] = {PC6, PC7, PC8, PC9, PC10, PC12};
 const uint32_t COL_PINS[NUM_COLS] = {PC0, PC1, PC2, PC3};
 
 enum Key : int8_t {
@@ -85,6 +91,13 @@ const unsigned long SCAN_MS = 5;
 const uint8_t DEBOUNCE_SCANS = 4;              // 20 ms
 const unsigned long CLEAR_OFF_MS = 3000;       // hold CLEAR to switch off
 const unsigned int AUTO_OFF_S = 5 * 60;                  // 5 minutes
+
+// Battery icon thresholds in millivolts (CR2032 is about 3.0 V new). Set the
+// final values once the PCB runs from a real coin cell; see the spec.
+const uint16_t BATT_3_BARS_MV = 2850;     // at or above: full
+const uint16_t BATT_2_BARS_MV = 2650;
+const uint16_t BATT_1_BAR_MV  = 2450;     // below this: empty icon with "!"
+const unsigned int BATT_CHECK_S = 60;     // re-check once a minute while idle
 const uint32_t TICK_MS = 1000;                           // timed wake while on and idle
 
 // ============================ Calculator state ===================
@@ -105,6 +118,7 @@ unsigned long lastScan = 0, pressStart = 0, lastRefresh = 0;
 unsigned int idleSeconds = 0;    // timed wakes since the last key (millis stops in Stop 2)
 volatile bool keyWoke = false;   // set by the column interrupt
 bool vcomBit = false;
+uint16_t battMv = 0;             // smoothed supply voltage, millivolts (0 = not read yet)
 bool clearHoldHandled = false;   // CLEAR already switched off during this hold
 bool ignoreRelease = false;      // release of a key that only woke / cleared an error
 
@@ -158,6 +172,43 @@ bool levelValue(size_t n, BCD &v) {
   return true;
 }
 
+// =================================================================
+// Battery
+// =================================================================
+
+// Read the supply voltage via the internal reference and smooth it a little.
+// Called while the CPU is busy redrawing, so a coin cell is under load and
+// shows its true, lower voltage.
+void readBattery() {
+  uint32_t raw = analogRead(AVREF);
+  uint32_t mv = __LL_ADC_CALC_VREFANALOG_VOLTAGE(raw, LL_ADC_RESOLUTION_12B);
+  battMv = battMv ? (uint16_t)((battMv * 3UL + mv) / 4) : (uint16_t)mv;
+}
+
+int batteryBars() {
+  if (battMv >= BATT_3_BARS_MV) return 3;
+  if (battMv >= BATT_2_BARS_MV) return 2;
+  if (battMv >= BATT_1_BAR_MV) return 1;
+  return 0;
+}
+
+// Battery icon at the right of the status line: an outline with a nub and
+// up to three bars. Empty shows a "!" instead.
+void drawBattery() {
+  const int w = 28, h = 14;
+  const int x = WIDTH - 8 - w - 3, y = (ROW_STATUS_H - h) / 2 - 1;
+  display.drawRect(x, y, w, h, BLACK);
+  display.drawRect(x + 1, y + 1, w - 2, h - 2, BLACK);            // 2 px outline
+  display.fillRect(x + w, y + 4, 3, h - 8, BLACK);                // nub
+  int bars = batteryBars();
+  for (int i = 0; i < bars; i++)
+    display.fillRect(x + 4 + i * 7, y + 4, 6, h - 8, BLACK);
+  if (bars == 0) {
+    display.fillRect(x + w / 2 - 1, y + 3, 3, 5, BLACK);          // "!"
+    display.fillRect(x + w / 2 - 1, y + h - 5, 3, 2, BLACK);
+  }
+}
+
 void drawScreen() {
   display.clearDisplay();
   if (isOff) { display.refresh(); lastRefresh = millis(); return; }
@@ -170,6 +221,8 @@ void drawScreen() {
   display.setFont(&CalcLabel);
   display.setCursor(8, 4 + CALCLABEL_DIGIT_H);
   display.print(status);
+  readBattery();
+  drawBattery();
   display.drawFastHLine(0, ROW_STATUS_H - 1, WIDTH, BLACK);
 
   // Not typing: levels 4, 3, 2, 1. Typing: levels 3, 2, 1, then the command line.
@@ -414,6 +467,9 @@ void onKeyDown(int k) {
   }
   printStack();
   drawScreen();
+  Serial.print("Supply: ");
+  Serial.print(battMv);
+  Serial.println(" mV");
 }
 
 void onKeyUp(int k) {
@@ -556,6 +612,11 @@ void sleepUntilWake() {
   }
   if (!isOff) {
     vcomToggle();
+    if (idleSeconds > 0 && idleSeconds % BATT_CHECK_S == 0) {
+      int before = batteryBars();
+      readBattery();
+      if (batteryBars() != before) drawScreen();   // redraw only if the icon changes
+    }
     if (++idleSeconds >= AUTO_OFF_S) {
       serialOn();                              // switchOff prints a message
       switchOff("auto-off");
@@ -567,12 +628,12 @@ void sleepUntilWake() {
 // inputs (and PH0, which the Nucleo's ST-LINK feeds with an 8 MHz clock)
 // draw hundreds of microamps in Stop 2; analog mode cuts that to almost nothing.
 // Kept as they are: Serial (PA2, PA3), display SPI and CS (PA5, PA6, PA7, PB6),
-// SWD (PA13, PA14), keypad (PC0-PC3, PC6-PC11), 32 kHz crystal (PC14, PC15).
+// SWD (PA13, PA14), keypad (PC0-PC3, PC6-PC10, PC12), 32 kHz crystal (PC14, PC15).
 void unusedPinsToAnalog() {
   const uint32_t unused[] = {
     PA0, PA1, PA4, PA8, PA9, PA10, PA11, PA12, PA15,
     PB0, PB1, PB2, PB3, PB4, PB5, PB7, PB8, PB9, PB10, PB11, PB12, PB13, PB14, PB15,
-    PC4, PC5, PC12, PC13, PD2, PH0, PH1
+    PC4, PC5, PC11, PC13, PD2, PH0, PH1
   };
   for (uint32_t pin : unused) pinMode(pin, INPUT_ANALOG);
 }
@@ -582,7 +643,8 @@ void setup() {
   HAL_DBGMCU_DisableDBGStopMode();             // debugger must not keep the chip awake in Stop
   Serial.begin(115200);
   delay(500);
-  Serial.println("RPN calculator, stage 4 (BCD maths, DejaVu fonts, Stop 2 sleep)");
+  Serial.println("RPN calculator, stage 5 (BCD, fonts, sleep, battery indicator)");
+  analogReadResolution(12);
 
   unsigned long t0 = millis();
   int failures = runSelfTest();
@@ -605,6 +667,9 @@ void setup() {
   display.begin();
   if (failures) showError("BCD self-test FAILED");
   drawScreen();
+  Serial.print("Supply: ");
+  Serial.print(battMv);
+  Serial.println(" mV");
 }
 
 void loop() {
