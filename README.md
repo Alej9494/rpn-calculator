@@ -5,6 +5,7 @@ A simple HP-style RPN calculator: a phone web app and a hardware version on an S
 | Folder | Contents |
 |---|---|
 | `docs/DESIGN.md` | Requirements and every design decision |
+| `docs/SOFTWARE-IDEAS.md` | Future software enhancements (not decided yet) |
 | `docs/datasheets/` | Component datasheets (PDF) |
 | `firmware/` | STM32 firmware |
 | `webapp/` | Phone web app |

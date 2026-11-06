@@ -13,6 +13,7 @@ Read them with the Docs tools when a task touches the hardware. When a decision 
 | Path | What |
 |---|---|
 | `docs/DESIGN.md` | Requirements and behaviour decisions (short) |
+| `docs/SOFTWARE-IDEAS.md` | Future software enhancements, not yet decided; move an item into `DESIGN.md` once it is |
 | `docs/datasheets/` | Every component datasheet; check pinouts against these |
 | `firmware/rpn_calculator/` | Arduino (STM32duino) sketch for the Nucleo L476RG; `bcd.*` is the 12-digit BCD maths, `tests/` runs it against Python's decimal |
 | `hardware/` | BOM (text and Digi-Key CSV); KiCad files will go here |
