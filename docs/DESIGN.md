@@ -13,6 +13,8 @@ A simple hardware RPN calculator, with a matching phone web app. Both must behav
 - ENTER pushes the command line once; it duplicates only when nothing is typed
 - 4 equal stack lines on screen, with no separate X line; the stack itself is unlimited
 - Separate Backspace and Drop keys
+- Too few arguments: an operation that needs more stack levels than there are shows "Error: too few arguments", as on the HP 48. + − × ÷ and SWAP need 2 levels; √x, DROP, +/− and ENTER (duplicate) need 1. A number being typed is pushed first, so `3 +` on an empty stack leaves 3 on the stack
+- Undo: BACK with nothing typed restores the stack as it was before the last key that changed it. One level, as on the HP 48; BACK again redoes. A number that was being typed is not brought back. CLEAR can be undone, and undo survives auto-off
 - No EEX key
 
 ## Screen

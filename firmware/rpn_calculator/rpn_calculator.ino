@@ -1,11 +1,10 @@
-// RPN_Stage5.ino
-// RPN calculator, stage 5: stage 4 (BCD maths, DejaVu fonts, Stop 2 sleep)
-// with a battery indicator. The chip measures its own supply voltage against
-// its internal reference (VREFINT) and shows a battery icon on the right of
-// the status line. No extra parts are needed.
+// rpn_calculator.ino
+// RPN calculator, stage 6: stage 5 (BCD maths, DejaVu fonts, Stop 2 sleep,
+// battery indicator) plus one-level undo and the HP 48 "too few arguments"
+// error.
 //
-// Sketch folder RPN_Stage5 must contain: RPN_Stage5.ino, bcd.h, bcd.cpp,
-// bcd_selftest.h, fonts.h.
+// Sketch folder rpn_calculator must contain: rpn_calculator.ino, bcd.h,
+// bcd.cpp, bcd_selftest.h, fonts.h.
 //
 // On the Nucleo the supply is a steady 3.3 V, so the icon shows full. To see
 // the other levels, raise the BATT_ thresholds below for a test upload.
@@ -33,9 +32,16 @@
 //   shifts up so levels 3-1 stay visible. 4 lines in all, no separate X line.
 // - ENTER pushes the typed number once. ENTER with nothing typed duplicates level 1.
 // - An operation while typing enters the number first (5 ENTER 3 + = 8).
-// - Unlimited stack (capped at STACK_MAX to protect RAM); missing operands = 0.
-// - Errors (divide by 0, sqrt of negative, overflow) leave the stack untouched;
-//   the next key only clears the message.
+// - Unlimited stack (capped at STACK_MAX to protect RAM).
+// - Too few arguments: an operation that needs more levels than the stack has
+//   shows "Error: too few arguments", as on the HP 48. + - * / and SWAP need
+//   2 levels; SQRT, DROP, +/- and ENTER (duplicate) need 1. A number being
+//   typed is pushed first, so 3 + on an empty stack leaves 3 on the stack.
+// - Errors (divide by 0, sqrt of negative, overflow, too few arguments) leave
+//   the operands on the stack; the next key only clears the message.
+// - Undo: BACK with nothing typed puts the stack back as it was before the
+//   last key that changed it. One level, as on the HP 48; BACK again redoes.
+//   CLEAR can be undone, and undo is kept while switched off.
 // - CLEAR acts on release; held 3 s it "switches off" (screen blanks, stack kept).
 // - Auto-off after 5 minutes without a key. Any key wakes; that press is ignored.
 // - At start-up the BCD maths checks itself against 422 cases computed with
@@ -105,6 +111,9 @@ const size_t STACK_MAX = 1000;
 const uint8_t MAX_DIGITS = 12;
 
 std::vector<BCD> stack;          // stack.back() is level 1
+std::vector<BCD> undoStack;      // the stack before the last change (for BACK)
+std::vector<BCD> beforeKey;      // scratch copy taken before each key
+bool undoValid = false;          // undoStack holds something to go back to
 bool entering = false;           // true while a number is on the command line
 char entry[24] = "";             // the command line, as typed (not on the stack yet)
 bool errorActive = false;
@@ -249,12 +258,6 @@ void drawScreen() {
 // Stack helpers
 // =================================================================
 
-BCD peek(size_t n) {               // level n (1 = bottom), 0 if missing
-  BCD v = bcdZero();
-  levelValue(n, v);
-  return v;
-}
-
 void dropLevels(size_t n) {
   while (n-- > 0 && !stack.empty()) stack.pop_back();
 }
@@ -263,6 +266,13 @@ void showError(const char *msg) {
   errorActive = true;
   errorMsg = msg;
   Serial.println(msg);
+}
+
+// True if the stack has at least n levels; otherwise shows the HP 48 error.
+bool needArgs(size_t n) {
+  if (stack.size() >= n) return true;
+  showError("Error: too few arguments");
+  return false;
 }
 
 // Show the error for a failed BCD operation. Returns true if it succeeded.
@@ -331,7 +341,7 @@ void keyDot() {
 
 void keyEnter() {
   if (entering) { commitEntry(); return; }              // push the typed number once
-  if (stack.empty()) return;
+  if (!needArgs(1)) return;
   if (stack.size() >= STACK_MAX) { showError("Stack full"); return; }
   stack.push_back(stack.back());                        // nothing typed: duplicate level 1
 }
@@ -342,11 +352,12 @@ void keyNeg() {
     else { memmove(entry + 1, entry, strlen(entry) + 1); entry[0] = '-'; }
     return;
   }
-  if (!stack.empty()) stack.back() = bcdNegate(stack.back());
+  if (!needArgs(1)) return;
+  stack.back() = bcdNegate(stack.back());
 }
 
 void keyBack() {
-  if (!entering) return;                                // no effect when not typing
+  if (!entering) return;                                // not typing: undo (see onKeyDown)
   size_t n = strlen(entry);
   if (n > 0) entry[n - 1] = '\0';
   const char *s = (entry[0] == '-') ? entry + 1 : entry;
@@ -355,20 +366,20 @@ void keyBack() {
 
 void keyDrop() {
   if (entering) { entering = false; entry[0] = '\0'; return; }   // abandon the typing
-  if (!stack.empty()) stack.pop_back();
+  if (!needArgs(1)) return;
+  stack.pop_back();
 }
 
 void keySwap() {
   if (!commitEntry()) return;
-  size_t n = stack.size();
-  if (n == 0) return;
-  if (n == 1) stack.insert(stack.begin(), bcdZero());  // missing level 2 counts as 0
+  if (!needArgs(2)) return;
   std::swap(stack[stack.size() - 1], stack[stack.size() - 2]);
 }
 
 void keyBinary(Key k) {
   if (!commitEntry()) return;
-  BCD x = peek(1), y = peek(2), r;
+  if (!needArgs(2)) return;
+  BCD x = stack[stack.size() - 1], y = stack[stack.size() - 2], r;
   BcdStatus st;
   switch (k) {
     case K_ADD: st = bcdAdd(y, x, r); break;
@@ -384,10 +395,39 @@ void keyBinary(Key k) {
 
 void keySqrt() {
   if (!commitEntry()) return;
+  if (!needArgs(1)) return;
   BCD r;
-  if (!checkStatus(bcdSqrt(peek(1), r))) return;
-  if (stack.empty()) stack.push_back(r);
-  else stack.back() = r;
+  if (!checkStatus(bcdSqrt(stack.back(), r))) return;
+  stack.back() = r;
+}
+
+// ---- Undo ----
+// Before a key runs, the stack is copied to beforeKey. If the key changed the
+// stack, that copy becomes the undo stack. Undo swaps the two, so pressing it
+// again redoes. Both vectors keep their memory, so copying doesn't fragment
+// the heap once they have grown.
+
+bool sameNumber(const BCD &a, const BCD &b) {
+  return a.neg == b.neg && a.q == b.q && memcmp(a.m, b.m, BCD_DIGITS) == 0;
+}
+
+bool stackEquals(const std::vector<BCD> &a, const std::vector<BCD> &b) {
+  if (a.size() != b.size()) return false;
+  for (size_t i = 0; i < a.size(); i++) if (!sameNumber(a[i], b[i])) return false;
+  return true;
+}
+
+void saveBeforeKey() { beforeKey = stack; }
+
+void recordUndoIfChanged() {
+  if (stackEquals(stack, beforeKey)) return;
+  std::swap(undoStack, beforeKey);
+  undoValid = true;
+}
+
+void keyUndo() {
+  if (!undoValid) return;                               // nothing to undo
+  std::swap(stack, undoStack);                          // BACK again redoes
 }
 
 void clearAll() {
@@ -443,6 +483,14 @@ void onKeyDown(int k) {
   Serial.print("Key ");
   Serial.println(KEY_LABEL[k]);
 
+  if (k == K_BACK && !entering) {                       // BACK with nothing typed: undo
+    keyUndo();
+    printStack();
+    drawScreen();
+    return;
+  }
+
+  saveBeforeKey();
   switch (k) {
     case K_0: keyDigit('0'); break;
     case K_1: keyDigit('1'); break;
@@ -465,6 +513,7 @@ void onKeyDown(int k) {
     case K_CLEAR: return;          // CLEAR acts on release (or at 3 s held)
     default: return;               // empty matrix positions
   }
+  recordUndoIfChanged();
   printStack();
   drawScreen();
   Serial.print("Supply: ");
@@ -476,7 +525,9 @@ void onKeyUp(int k) {
   if (ignoreRelease) { ignoreRelease = false; return; }
   if (k == K_CLEAR && !clearHoldHandled) {   // tap: clear everything
     Serial.println("Key CLEAR (tap)");
+    saveBeforeKey();
     clearAll();
+    recordUndoIfChanged();
     printStack();
     drawScreen();
   }
@@ -643,7 +694,7 @@ void setup() {
   HAL_DBGMCU_DisableDBGStopMode();             // debugger must not keep the chip awake in Stop
   Serial.begin(115200);
   delay(500);
-  Serial.println("RPN calculator, stage 5 (BCD, fonts, sleep, battery indicator)");
+  Serial.println("RPN calculator, stage 6 (BCD, fonts, sleep, battery, undo, too few arguments)");
   analogReadResolution(12);
 
   unsigned long t0 = millis();
@@ -664,6 +715,8 @@ void setup() {
     LowPower.attachInterruptWakeup(COL_PINS[c], keyWakeISR, FALLING, DEEP_SLEEP_MODE);
 
   stack.reserve(64);
+  undoStack.reserve(64);
+  beforeKey.reserve(64);
   display.begin();
   if (failures) showError("BCD self-test FAILED");
   drawScreen();

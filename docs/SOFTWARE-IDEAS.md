@@ -3,13 +3,13 @@
 Ideas for improving the calculator without changing the hardware. None of these are decided yet; each needs a decision before it is built, and anything that changes behaviour must go into both the firmware and the web app.
 
 The keypad has no spare keys, so new functions have to use states that are free today:
-- BACK when nothing is typed (it currently does nothing)
+- ~~BACK when nothing is typed~~ (now used for undo)
 - a long-press on any key except CLEAR (CLEAR's long-press already switches off)
 - a key held while waking the calculator
 
 ## Stack and maths
-- [ ] **Undo.** BACK when nothing is typed. Keep a copy of the stack before each operation so a wrong ÷, DROP or CLEAR can be reversed, as on the HP 48.
-- [ ] **Too few arguments.** At the moment a missing operand counts as 0, so `5 +` gives 5 and SWAP with one number inserts a 0. The HP 48 shows an error and leaves the stack untouched. Decide which behaviour to keep.
+- [x] **Undo.** Done in firmware stage 6; see `DESIGN.md`.
+- [x] **Too few arguments.** Done in firmware stage 6: HP 48 error; see `DESIGN.md`.
 - [ ] **Stack browser.** A long-press opens a view of the whole stack that scrolls with 8 and 2. ENTER copies the chosen level to level 1 (HP 48 PICK), and DROP deletes it. This also gives a roll down without a new key.
 - [ ] **Fixed 2 decimal places.** An optional FIX 2 display mode for money sums. It changes only how numbers are shown, not the 12-digit maths.
 
@@ -32,4 +32,4 @@ The keypad has no spare keys, so new functions have to use states that are free 
 - [ ] **Shared calculator logic.** Move the stack and key logic out of the `.ino` into plain C++ that doesn't depend on Arduino. The shared keystroke tests in `tests/` can then run on a PC. The same code compiled to WebAssembly could power the web app, so the two behave identically by construction rather than being kept in step by hand.
 
 ## Suggested order
-Undo, then the too-few-arguments decision, then the shared logic module.
+Next: the shared logic module (undo and too few arguments are done).

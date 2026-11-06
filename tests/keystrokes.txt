@@ -1,0 +1,37 @@
+# Shared keystroke tests: firmware and web app must give the same results.
+# Each line: keys pressed, starting from an empty stack -> stack afterwards
+# (level 1 last), then "!" and the status-line error if one is showing.
+# C = CLEAR tap, NEG = +/-, BACK = backspace/undo.
+# These all pass when the firmware's key handling is compiled on a computer.
+
+# Too few arguments
+3 +                          -> 3 !Error: too few arguments
++                            -> (empty) !Error: too few arguments
+5 SWAP                       -> 5 !Error: too few arguments
+SQRT                         -> (empty) !Error: too few arguments
+DROP                         -> (empty) !Error: too few arguments
+ENTER                        -> (empty) !Error: too few arguments
+NEG                          -> (empty) !Error: too few arguments
+5 ENTER 0 /                  -> 5 0 !Error: divide by 0
+
+# Undo (BACK with nothing typed) and redo (BACK again)
+5 ENTER 3 +                  -> 8
+5 ENTER 3 + BACK             -> 5
+5 ENTER 3 + BACK BACK        -> 8
+1 ENTER 2 ENTER 3 C BACK     -> 1 2
+1 ENTER 2 ENTER DROP BACK    -> 1 2
+1 ENTER 2 DROP BACK          -> (empty)
+4 ENTER 9 ENTER SWAP         -> 9 4
+4 ENTER 9 ENTER SWAP BACK    -> 4 9
+4 ENTER 9 SWAP BACK          -> 4
+9 ENTER SQRT BACK            -> 9
+9 SQRT BACK                  -> (empty)
+7 ENTER ENTER BACK           -> 7
+2 ENTER NEG BACK             -> 2
+2 NEG BACK                   -> (empty)
+1 ENTER C BACK BACK          -> (empty)
+BACK                         -> (empty)
+1 2 BACK BACK                -> (empty)
+7 ENTER 1 2 BACK BACK BACK   -> (empty)
+5 ENTER 0 / 1 BACK           -> 5
+3 + 1 BACK                   -> (empty)

@@ -22,6 +22,7 @@ Read them with the Docs tools when a task touches the hardware. When a decision 
 
 ## Decisions that are easy to get wrong
 - Entry is HP 48 style: left-justified command line, ENTER pushes once and duplicates only when nothing is typed, 4 equal stack lines, unlimited stack. Only + − × ÷ and √x. 12 digits, BCD, ROUND_HALF_UP.
+- Missing operands are an error ("Error: too few arguments"), never 0. BACK with nothing typed is a one-level undo; pressing it again redoes.
 - No On/Off key: auto-off after 5 min, stack kept in RAM (Stop 2). Hold CLEAR 3 s to switch off; CLEAR acts on release. Stack is not saved to flash.
 - Power: VDD is about 3.0 V from the CR2032 through Q1 (DMG2305UX P-MOSFET: S to VDD, D to BT1+, G to 3V3_USB, R9 100k pulls G low). USB-C powers the board only during updates: U3 MCP1700 makes 3V3_USB, which feeds VDDUSB and, through Q2 (second DMG2305UX used as its body diode: G and S to VDD, D to 3V3_USB), VDD at about 2.7 V. Q1 turns off then, so USB never charges the cell.
 - Display: U2 MCP1640 boost makes 5V_DISP (R6 976k / R7 309k), U5 MCP1700 makes 3V3_DISP, U6–U10 SN74LV1T34 buffers lift the five panel signals to 3.3 V. EXTMODE to 5V_DISP. Panel LS027B7DH01 (zero-defect grade of LS027B7DH01A, same datasheet).
