@@ -7,9 +7,15 @@
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#e6e8eb">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
+/* Fonts are stored with the app (SIL Open Font License, see fonts/OFL.txt)
+   so it looks the same with no signal. */
+@font-face { font-family: "IBM Plex Mono"; font-weight: 600; font-display: swap; src: url(fonts/IBMPlexMono-SemiBold.woff2) format("woff2"); }
+@font-face { font-family: "IBM Plex Sans Condensed"; font-weight: 600; font-display: swap; src: url(fonts/IBMPlexSansCondensed-SemiBold.woff2) format("woff2"); }
+
 /* Layout: one-screen instrument. A 4-line readout like the hardware's Sharp
    panel on top, the same 6 x 4 keypad filling the rest. */
 :root {
@@ -484,6 +490,13 @@ if (typeof module !== "undefined") module.exports = BCD;
   resetAutoOff();
   render();
 })();
+
+// Offline support for the installed app. Only on the published site (and a
+// local test server), not inside the claude.ai preview.
+if ("serviceWorker" in navigator &&
+    (location.hostname.endsWith("github.io") || location.hostname === "localhost")) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
 </script>
 
 </body></html>

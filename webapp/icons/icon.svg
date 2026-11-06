@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Full-bleed background so the same art works as a maskable icon;
+       everything that matters sits inside the central safe circle. -->
+  <rect width="512" height="512" fill="#2c4866"/>
+  <rect x="136" y="124" width="240" height="96" rx="14" fill="#d7ddd1"/>
+  <rect x="152" y="146" width="40" height="7" rx="3.5" fill="#6d7d70"/>
+  <rect x="152" y="166" width="64" height="7" rx="3.5" fill="#6d7d70"/>
+  <text x="360" y="202" text-anchor="end" font-family="IBM Plex Mono" font-weight="600" font-size="46" fill="#1b2a1f">RPN</text>
+  <g fill="#fbfbfc">
+    <rect x="136" y="240" width="51" height="40" rx="9"/>
+    <rect x="199" y="240" width="51" height="40" rx="9"/>
+    <rect x="262" y="240" width="51" height="40" rx="9"/>
+    <rect x="136" y="292" width="51" height="40" rx="9"/>
+    <rect x="199" y="292" width="51" height="40" rx="9"/>
+    <rect x="262" y="292" width="51" height="40" rx="9"/>
+  </g>
+  <g fill="#5b84b1">
+    <rect x="325" y="240" width="51" height="40" rx="9"/>
+    <rect x="325" y="292" width="51" height="40" rx="9"/>
+    <rect x="325" y="344" width="51" height="40" rx="9"/>
+  </g>
+  <rect x="136" y="344" width="177" height="40" rx="9" fill="#d49a1e"/>
+</svg>

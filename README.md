@@ -8,6 +8,6 @@ A simple HP-style RPN calculator: a phone web app and a hardware version on an S
 | `docs/SOFTWARE-IDEAS.md` | Future software enhancements (not decided yet) |
 | `docs/datasheets/` | Component datasheets (PDF) |
 | `firmware/` | STM32 firmware |
-| `webapp/` | Phone web app |
+| `webapp/` | Phone web app, installable from https://alej9494.github.io/rpn-calculator/ (Chrome ⋮ menu → Install app); works offline |
 | `hardware/` | KiCad schematic and PCB |
 | `tests/` | Shared keystroke test vectors, run against both the web app and the firmware |
