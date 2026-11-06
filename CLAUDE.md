@@ -17,7 +17,7 @@ Read them with the Docs tools when a task touches the hardware. When a decision 
 | `docs/datasheets/` | Every component datasheet; check pinouts against these |
 | `firmware/rpn_calculator/` | Arduino (STM32duino) sketch for the Nucleo L476RG; `bcd.*` is the 12-digit BCD maths, `tests/` runs it against Python's decimal |
 | `hardware/` | BOM (text and Digi-Key CSV); KiCad files will go here |
-| `webapp/` | Phone web app |
+| `webapp/index.html` | Phone web app, one self-contained file. Live copy: https://claude.ai/artifact/GyVYGFfCaQ68KsLYyFStbs; republish it after changing the file |
 | `tests/` | Shared keystroke test vectors for web app and firmware |
 
 ## Decisions that are easy to get wrong

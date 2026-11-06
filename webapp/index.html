@@ -1,5 +1,10 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>RPN Calculator</title>
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#e6e8eb">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -104,6 +109,8 @@ button.enter { grid-column: span 3; background: var(--enter); color: var(--enter
 button.clr { color: var(--warn); }
 @media (prefers-reduced-motion: reduce) { button, .lcd { transition: none; } }
 </style>
+</head>
+<body>
 
 <div class="calc">
   <div class="lcd" id="lcd" aria-live="polite">
@@ -277,6 +284,7 @@ if (typeof module !== "undefined") module.exports = BCD;
   let error = null;        // message shown until the next key
   let off = false;
   let autoOffTimer, clearTimer = null, clearHeldOff = false;
+  let undoStack = null;    // the stack before the last key that changed it (for BACK)
 
   try {
     const saved = JSON.parse(localStorage.getItem("rpn-stack-bcd") || "null");
@@ -292,7 +300,12 @@ if (typeof module !== "undefined") module.exports = BCD;
   };
 
   const MESSAGES = { OVF: "Overflow", DIV0: "Error: divide by 0", NEGSQRT: "Error: sqrt of negative", BAD: "Error: bad number" };
-  const peek = n => stack.length >= n ? stack[stack.length - n] : BCD.ZERO;   // missing levels count as 0
+  // True if the stack has at least n levels; otherwise the HP 48 error.
+  function needArgs(n) {
+    if (stack.length >= n) return true;
+    error = "Error: too few arguments";
+    return false;
+  }
 
   // Push the command line onto the stack. Returns false if that failed.
   function commit() {
@@ -315,9 +328,10 @@ if (typeof module !== "undefined") module.exports = BCD;
 
   function binary(op) {
     if (!commit()) return;
-    const r = op(peek(2), peek(1));
+    if (!needArgs(2)) return;
+    const r = op(stack[stack.length - 2], stack[stack.length - 1]);
     if (!r.ok) { error = MESSAGES[r.err]; return; }  // stack untouched on error
-    stack.splice(Math.max(0, stack.length - 2), 2, r.v);
+    stack.splice(stack.length - 2, 2, r.v);
   }
 
   function press(k) {
@@ -334,49 +348,59 @@ if (typeof module !== "undefined") module.exports = BCD;
       }
     } else if (k === "enter") {
       if (entry !== null) commit();                  // push the typed number once
-      else if (stack.length) {
+      else if (needArgs(1)) {
         if (stack.length >= STACK_MAX) error = "Stack full";
         else stack.push(stack[stack.length - 1]);    // nothing typed: duplicate level 1
       }
     } else if (k === "neg") {
       if (entry !== null) entry = entry.startsWith("-") ? entry.slice(1) : "-" + entry;
-      else if (stack.length) stack[stack.length - 1] = BCD.negate(stack[stack.length - 1]);
+      else if (needArgs(1)) stack[stack.length - 1] = BCD.negate(stack[stack.length - 1]);
     } else if (k === "back") {
       if (entry !== null) {
         entry = entry.slice(0, -1);
         if (entry === "" || entry === "-") entry = null;
-      }
+      }                                              // not typing: undo (see handleKey)
     } else if (k === "drop") {
       if (entry !== null) entry = null;              // cancel the command line
-      else stack.pop();
+      else if (needArgs(1)) stack.pop();
     } else if (k === "swap") {
       if (!commit()) return;
-      const n = stack.length;
-      if (n === 1) stack.unshift(BCD.ZERO);          // missing level 2 counts as 0
-      if (stack.length >= 2) {
-        const m = stack.length;
-        [stack[m - 1], stack[m - 2]] = [stack[m - 2], stack[m - 1]];
-      }
+      if (!needArgs(2)) return;
+      const m = stack.length;
+      [stack[m - 1], stack[m - 2]] = [stack[m - 2], stack[m - 1]];
     } else if (k === "+") binary(BCD.add);
     else if (k === "-") binary(BCD.sub);
     else if (k === "*") binary(BCD.mul);
     else if (k === "/") binary(BCD.div);
     else if (k === "sqrt") {
       if (!commit()) return;
-      const r = BCD.sqrt(peek(1));
+      if (!needArgs(1)) return;
+      const r = BCD.sqrt(stack[stack.length - 1]);
       if (!r.ok) { error = MESSAGES[r.err]; return; }
-      if (stack.length) stack[stack.length - 1] = r.v; else stack.push(r.v);
+      stack[stack.length - 1] = r.v;
     } else if (k === "clear") {
       stack = []; entry = null;
     }
   }
 
-  // Every key goes through here: wake, clear an error, or act.
+  // Undo: before a key runs, the stack is copied. If the key changed the
+  // stack, that copy becomes the undo stack. BACK with nothing typed swaps the
+  // two, so pressing it again redoes. One level, as on the HP 48.
+  const sameNumber = (a, b) => a.neg === b.neg && a.m === b.m && a.q === b.q;
+  const sameStack = (a, b) => a.length === b.length && a.every((v, i) => sameNumber(v, b[i]));
+
+  // Every key goes through here: wake, clear an error, undo, or act.
   function handleKey(k) {
     resetAutoOff();
     if (off) { off = false; render(); return; }      // any key wakes; that press does nothing else
     if (error) { error = null; render(); return; }   // next key only clears the message
-    press(k);
+    if (k === "back" && entry === null) {            // BACK with nothing typed: undo
+      if (undoStack) [stack, undoStack] = [undoStack, stack];
+    } else {
+      const before = stack.slice();
+      press(k);
+      if (!sameStack(before, stack)) undoStack = before;
+    }
     render();
     save();
   }
