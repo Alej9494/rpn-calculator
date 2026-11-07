@@ -89,7 +89,8 @@ part("Y1", "Crystal", "32.768kHz 4pF", "Crystal:Crystal_SMD_2012-2Pin_2.0x1.2mm"
      "CM8V-T1A-32.768KHZ-4PF-20PPM-TA-QC", {"1": "LSE_IN", "2": "LSE_OUT"})
 c("C19", "3.9pF C0G", "LSE_IN")
 c("C20", "3.9pF C0G", "LSE_OUT")
-part("Y2", "Crystal", "8MHz (not fitted)", "", "", {"1": "HSE_IN", "2": "HSE_OUT"},
+part("Y2", "Crystal", "8MHz (not fitted)", "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm_HandSoldering", "",
+     {"1": "HSE_IN", "3": "HSE_OUT", "2": "GND", "4": "GND"},  # 3225: pads 1, 3 crystal; 2, 4 case
      dnp=True)
 c("C16", "DNP", "HSE_IN", dnp=True)
 c("C17", "DNP", "HSE_OUT", dnp=True)
@@ -123,7 +124,7 @@ for u, a, y, cap in BUFS:
     part(u, "SN74LV1T34", "SN74LV1T34DBVR", "Package_TO_SOT_SMD:SOT-23-5",
          "SN74LV1T34DBVR", {"2": a, "3": "GND", "4": y, "5": "3V3_DISP"})
     c(cap, "100nF", "3V3_DISP", mpn="CL21B104KBCNNNC")
-part("J1", "LS027B7DH01_FPC", "LS027B7DH01 panel", "", "Wurth 687110183622",
+part("J1", "LS027B7DH01_FPC", "LS027B7DH01 panel", "rpn:Wurth_687110183622_1x10-1MP_P0.50mm_Horizontal", "Wurth 687110183622",
      {"1": "LCD_SCK", "2": "LCD_SI", "3": "LCD_SCS", "4": "LCD_EXTCOMIN",
       "5": "LCD_DISP", "6": "5V_DISP", "7": "5V_DISP", "8": "5V_DISP",
       "9": "GND", "10": "GND"})
@@ -142,7 +143,7 @@ for i, k in enumerate(KEYS):
     row, col = i // 4 + 1, i % 4 + 1
     ref = f"SW{n}"
     KEYPOS[ref] = (row, col)
-    part(ref, "SW_Push", k, "", "Kailh Choc V1", {"1": f"ROW{row}", "2": f"COL{col}"})
+    part(ref, "SW_Push", k, "rpn:SW_Kailh_Choc_V1_1.00u", "Kailh Choc V1", {"1": f"ROW{row}", "2": f"COL{col}"})
 
 # Test points and mounting holes (from the spec's PCB section)
 for i, net in enumerate(["VDD", "3V3_USB", "5V_DISP", "3V3_DISP", "GND"], 1):

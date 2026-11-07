@@ -151,6 +151,13 @@ two_pin("BAT", "BT", 5.08, (lambda: [pl((-2.54, 0.762), (2.54, 0.762), w=0.254),
                                      pl((1.524, 2.794), (1.524, 1.778))], 0.762,
                             lambda: []), "Coin cell holder, pin 1 +")
 
+libsym("Y4", "Y",
+       [("1", "~", P_, 0, 5.08, 270, 3.556), ("3", "~", P_, 0, -5.08, 90, 3.556),
+        ("2", "~", P_, 5.08, 0, 180, 3.302), ("4", "~", P_, -5.08, 0, 0, 3.302)],
+       [pl((-2.032, 1.524), (2.032, 1.524), w=0.508), rect(-1.524, 0.762, 1.524, -0.762),
+        pl((-2.032, -1.524), (2.032, -1.524), w=0.508)],
+       "Crystal, four pads (1, 3 crystal; 2, 4 case)", names=False, numbers=True)
+
 # Keyswitch: pin 1 comes down from the row, pin 2 goes right to the column
 libsym("KEY", "SW",
        [("1", "~", P_, -5.08, 5.08, 270, 2.54), ("2", "~", P_, 5.08, 0, 180, 2.54)],
@@ -500,8 +507,16 @@ for xt, ca, cb, pa, pb in (("Y2", "C16", "C17", "5", "6"), ("Y1", "C19", "C20", 
     gnd((T(236), ya))
     two(cb, "C", (T(280), yb), (T(236), yb), {"Reference": (0, -2.54, None), "Value": (0, 2.54, None)})
     gnd((T(236), yb))
-    two(xt, "Y", (T(304), ya), (T(304), yb),
-        {"Reference": (3.81, -1.27, "left"), "Value": (3.81, 1.27, "left")})
+    if xt == "Y2":   # 3225 four-pad crystal: 1 and 3 crystal, 2 and 4 case to GND
+        c = snap((ya + yb) / 2)
+        place(xt, "Y4", T(304), c, 0,
+              {"Reference": (6.35, -1.27, "left"), "Value": (6.35, 1.27, "left")})
+        wire((T(304), ya), P(xt, "1"))
+        wire(P(xt, "3"), (T(304), yb))
+        gnd(P(xt, "2")); gnd(P(xt, "4"))
+    else:
+        two(xt, "Y", (T(304), ya), (T(304), yb),
+            {"Reference": (3.81, -1.27, "left"), "Value": (3.81, 1.27, "left")})
 
 # Bootloader receive pins ----------------------------------------------------------
 for r, pin in (("R10", "43"), ("R11", "17"), ("R12", "52")):

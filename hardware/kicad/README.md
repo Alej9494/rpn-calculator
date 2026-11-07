@@ -17,6 +17,13 @@ U4 (USBLC6-2SC6) is drawn flow-through, as in the doc: pins 1 and 6 (and 3 and 4
 Until PCB layout starts, change the circuit in `netlist.py` / `generate_schematic.py` and re-run both scripts. Once layout has started, edit in KiCad instead, since re-running would overwrite hand edits.
 
 ## Footprints
-Assigned from KiCad's standard libraries: LQFP-64, SOT-23/-5/-6, 0805 and 1206 passives, the 1×6 header, Keystone 1058, GCT USB4085, Omron B3U-1000P, the 2.0 × 1.2 mm crystal, test pads and M2 holes. These names weren't checked against an installed KiCad, so the footprint assignment step may flag one.
+Most come from KiCad's standard libraries. The project's own library, `rpn.pretty` (loaded through `fp-lib-table`), adds:
 
-Still to choose: J1 (Würth 687110183622), L1 (Würth 74404042047), SW1–SW22 (Kailh Choc V1, with or without hotswap sockets) and Y2. The Enter stabiliser has no circuit, so it goes straight on the PCB as a footprint.
+| Footprint | For | Source |
+|---|---|---|
+| `SW_Kailh_Choc_V1_1.00u` | SW1–SW22 | [kiswitch](https://github.com/kiswitch/kiswitch) keyswitch library, CC-BY-SA 4.0 with an exception for designs made with it; 3D model line removed |
+| `Wurth_687110183622_1x10-1MP_P0.50mm_Horizontal` | J1 | Drawn from the recommended land pattern in `docs/datasheets/Wurth-687110183622-FPC-connector.pdf` (rev 001.008): ten 0.3 x 1.0 mm pads at 0.5 mm pitch, two 1.65 x 1.30 mm tabs (pad "MP", no net) 1.45 mm out from pins 1 and 10 and 0.75 mm below the pad row. The cable enters from the body side. |
+
+Y2 uses KiCad's 3.2 x 2.5 mm four-pad crystal footprint: pads 1 and 3 are the crystal, 2 and 4 the case, tied to GND.
+
+Still to do: L1 (Wurth 74404042047, WE-LQS 4018) needs the land pattern from Wurth's datasheet. The Enter key uses the 1u footprint at R6C2; the stabiliser has no circuit, so its holes go straight on the PCB, checked against the stabiliser you bought.
