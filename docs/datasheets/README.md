@@ -8,7 +8,8 @@
 | Würth 687110183622 | WR-FPC 0.5 mm ZIF connector for the LCD ribbon | `Wurth-687110183622-FPC-connector.pdf` |
 | TI SN74LV1T34 | Single-gate level-shifting buffer | `SN74LV1T34.pdf` |
 | Microchip MCP1640 | Boost regulator | `MCP1640.pdf` |
-| Coilcraft LPS4018 | Former L1, replaced by Würth 74404042047 (datasheet to add) | `Coilcraft-LPS4018.pdf` |
+| Würth 74404042047 (WE-LQS 4018) | L1, 4.7 µH boost inductor | `Wurth-74404042047-WE-LQS-4018.pdf` |
+| Coilcraft LPS4018 | Former L1, replaced by Würth 74404042047 | `Coilcraft-LPS4018.pdf` |
 | Microchip MCP1700 | Low-quiescent LDO | `MCP1700.pdf` |
 | Nexperia BAT54C | Dual Schottky diode, common cathode (considered, not used: replaced by Q2) | `BAT54C.pdf` |
 | Diodes DMG2305UX | P-channel MOSFET | `DMG2305UX.pdf` |

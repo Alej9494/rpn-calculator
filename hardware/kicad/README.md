@@ -23,7 +23,8 @@ Most come from KiCad's standard libraries. The project's own library, `rpn.prett
 |---|---|---|
 | `SW_Kailh_Choc_V1_1.00u` | SW1–SW22 | [kiswitch](https://github.com/kiswitch/kiswitch) keyswitch library, CC-BY-SA 4.0 with an exception for designs made with it; unchanged |
 | `Wurth_687110183622_1x10-1MP_P0.50mm_Horizontal` | J1 | Drawn from the recommended land pattern in `docs/datasheets/Wurth-687110183622-FPC-connector.pdf` (rev 001.008): ten 0.3 x 1.0 mm pads at 0.5 mm pitch, two 1.65 x 1.30 mm tabs (pad "MP", no net) 1.45 mm out from pins 1 and 10 and 0.75 mm below the pad row. The cable enters from the body side. |
+| `L_Wuerth_WE-LQS-4018` | L1 | Drawn from the recommended land pattern in `docs/datasheets/Wurth-74404042047-WE-LQS-4018.pdf` (rev 002.002): two 1.5 x 3.6 mm pads, 1.55 mm apart; pad 1 is the start of winding |
 
 Y2 uses KiCad's 3.2 x 2.5 mm four-pad crystal footprint: pads 1 and 3 are the crystal, 2 and 4 the case, tied to GND.
 
-Still to do: L1 (Wurth 74404042047, WE-LQS 4018) needs the land pattern from Wurth's datasheet. The Enter key uses the 1u footprint at R6C2; the stabiliser has no circuit, so its holes go straight on the PCB, checked against the stabiliser you bought.
+The Enter key uses the 1u footprint at R6C2; the stabiliser has no circuit, so its holes go straight on the PCB, checked against the stabiliser you bought.

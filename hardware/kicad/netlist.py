@@ -104,7 +104,7 @@ r("R12", "100k", "BL_RX3", "GND", "RC0805FR-07100KL")
 part("U2", "MCP1640", "MCP1640T-I/CHY", "Package_TO_SOT_SMD:SOT-23-6",
      "MCP1640T-I/CHY", {"6": "VDD", "3": "DISP_PWR_EN", "2": "GND",
                         "1": "SW_BOOST", "5": "5V_DISP", "4": "FB_BOOST"})
-part("L1", "L", "4.7uH", "", "Wurth 74404042047", {"1": "VDD", "2": "SW_BOOST"})
+part("L1", "L", "4.7uH", "rpn:L_Wuerth_WE-LQS-4018", "Wurth 74404042047", {"1": "VDD", "2": "SW_BOOST"})
 c("C6", "4.7uF", "VDD", mpn="CL21A475KAQNNNE")
 c("C7", "22uF 16V", "5V_DISP", mpn="CL21A226MOQNNNE")
 r("R6", "976k", "5V_DISP", "FB_BOOST", "RC0805FR-07976KL")
