@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """Check rpn-calculator.kicad_sch without KiCad.
 
-Parses the file, rebuilds connectivity from the geometry (pin ends, wires,
-labels, no-connect flags) and reports: unconnected pins, dangling wires,
-pins of different parts touching, labels not on a wire, and the netlist.
+Reads the file itself (not the generator), rebuilds the connectivity the way
+KiCad does (wire ends, pin ends, labels, GND symbols, junctions) and compares
+it with netlist.py. Also reports unconnected pins, dangling wires, T-joins
+without a junction dot and wires that pass over a pin.
 
-Run:  python3 check_schematic.py [netlist.txt]
+Run:  python3 check_schematic.py
 """
 import os
 import sys
 from collections import defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from netlist import PARTS  # noqa: E402
 
 
 def parse(s):
@@ -56,8 +59,8 @@ def one(node, name):
     return k[0] if k else None
 
 
-def key(x, y):
-    return (round(float(x) * 100), round(float(y) * 100))
+def pt(x, y):
+    return (round(float(x), 2), round(float(y), 2))
 
 
 def main():
@@ -69,35 +72,85 @@ def main():
         for sub in kids(sym, "symbol"):
             for p in kids(sub, "pin"):
                 at = one(p, "at")
-                pins.append((one(p, "number")[1], float(at[1]), float(at[2])))
-        libs[sym[1]] = pins
+                pins.append((one(p, "number")[1], p[1], float(at[1]), float(at[2])))
+        libs[sym[1]] = dict(pins=pins, power=any(k == ["power"] for k in sym))
 
-    pin_at = defaultdict(list)          # point -> [(ref, pin)]
-    parts = {}
+    errors = []
+    pin_at = defaultdict(list)
+    ptype, refs, power_pts = {}, {}, []
     for s in kids(sch, "symbol"):
         lib = one(s, "lib_id")[1]
         at = one(s, "at")
         X, Y, rot = float(at[1]), float(at[2]), int(at[3])
-        assert rot == 0
-        ref = [p[2] for p in kids(s, "property") if p[1] == "Reference"][0]
-        assert ref not in parts, f"duplicate reference {ref}"
-        parts[ref] = lib
-        for num, px, py in libs[lib]:
-            pin_at[key(X + px, Y - py)].append((ref, num))
+        props = {p[1]: p[2] for p in kids(s, "property")}
+        ref = props["Reference"]
+        if libs[lib]["power"]:
+            power_pts.append((props["Value"], pt(X, Y)))
+            continue
+        assert ref not in refs, f"duplicate reference {ref}"
+        refs[ref] = lib
+        for num, typ, px, py in libs[lib]["pins"]:
+            if rot == 0:
+                p = pt(X + px, Y - py)
+            elif rot == 180:
+                p = pt(X - px, Y + py)
+            else:
+                raise SystemExit(f"{ref}: rotation {rot} not handled")
+            pin_at[p].append((ref, num))
+            ptype[(ref, num)] = typ
 
-    wires = []
+    segs = []
     for w in kids(sch, "wire"):
         pts = one(w, "pts")
-        a, b = [key(p[1], p[2]) for p in pts[1:]]
-        wires.append((a, b))
+        a, b = [pt(p[1], p[2]) for p in pts[1:]]
+        if a[0] != b[0] and a[1] != b[1]:
+            errors.append(f"diagonal wire {a} {b}")
+        segs.append((a, b))
     labels = defaultdict(list)
     for l in kids(sch, "label"):
         at = one(l, "at")
-        labels[key(at[1], at[2])].append(l[1])
-    nc = {key(n[1][1], n[1][2]) for n in kids(sch, "no_connect")}
+        labels[pt(at[1], at[2])].append(l[1])
+    juncs = {pt(*one(j, "at")[1:3]) for j in kids(sch, "junction")}
+    ncs = {pt(*one(n, "at")[1:3]) for n in kids(sch, "no_connect")}
 
-    errors = []
-    # union-find over points
+    ends = defaultdict(int)
+    for a, b in segs:
+        ends[a] += 1; ends[b] += 1
+    power_set = {p for _, p in power_pts}
+
+    def on_interior(p, a, b):
+        if a[0] == b[0] == p[0]:
+            return min(a[1], b[1]) < p[1] < max(a[1], b[1])
+        if a[1] == b[1] == p[1]:
+            return min(a[0], b[0]) < p[0] < max(a[0], b[0])
+        return False
+
+    # anything that would connect mid-wire must have been split by the generator
+    probe = set(ends) | set(pin_at) | set(labels) | power_set
+    for p in probe:
+        for a, b in segs:
+            if on_interior(p, a, b):
+                errors.append(f"{pin_at.get(p) or labels.get(p) or 'wire end'} at {p} sits mid-wire")
+    for p, n in ends.items():
+        items = n + len(pin_at.get(p, [])) + (1 if p in power_set else 0)
+        if items >= 3 and p not in juncs:
+            errors.append(f"join without a junction dot at {p}")
+        if n == 1 and p not in pin_at and p not in labels and p not in power_set:
+            errors.append(f"dangling wire end at {p}")
+    for p in juncs:
+        if ends.get(p, 0) + len(pin_at.get(p, [])) + (1 if p in power_set else 0) < 3:
+            errors.append(f"junction dot with nothing to join at {p}")
+    for p, lst in pin_at.items():
+        if len(lst) > 1:
+            errors.append(f"pins on top of each other: {lst}")
+        connected = p in ends or p in power_set
+        for k in lst:
+            if p in ncs and connected:
+                errors.append(f"no-connect flag on a connected pin {k}")
+            if not connected and p not in ncs and ptype[k] != "no_connect":
+                errors.append(f"unconnected pin {k}")
+
+    # connectivity
     parent = {}
 
     def find(a):
@@ -110,69 +163,50 @@ def main():
     def union(a, b):
         parent[find(a)] = find(b)
 
-    ends = defaultdict(int)
-    for a, b in wires:
+    for a, b in segs:
         union(a, b)
-        ends[a] += 1; ends[b] += 1
-    for pt, lst in pin_at.items():
-        if len(lst) > 1:
-            errors.append(f"pins touching: {lst}")
-        if pt not in ends and pt not in nc:
-            errors.append(f"unconnected pin {lst}")
-        if pt in ends and pt in nc:
-            errors.append(f"no-connect on a wired pin {lst}")
-    for pt, cnt in ends.items():
-        if pt not in pin_at and pt not in labels and cnt < 2:
-            errors.append(f"dangling wire end at {pt}")
-    for pt, names in labels.items():
-        if pt not in ends:
-            errors.append(f"label {names} not on a wire")
-        if len(set(names)) > 1:
-            errors.append(f"two labels on one point: {names}")
-    # a wire passing through a pin end (not ending there) would also connect in KiCad
-    for pt in pin_at:
-        for a, b in wires:
-            if pt in (a, b):
-                continue
-            if a[0] == b[0] == pt[0] and min(a[1], b[1]) < pt[1] < max(a[1], b[1]):
-                errors.append(f"wire crosses pin end {pin_at[pt]}")
-            if a[1] == b[1] == pt[1] and min(a[0], b[0]) < pt[0] < max(a[0], b[0]):
-                errors.append(f"wire crosses pin end {pin_at[pt]}")
+    for p, lst in pin_at.items():
+        for k in lst:
+            union(("pin",) + k, p)
+    for name, p in power_pts:
+        if name != "PWR_FLAG":          # PWR_FLAG only marks a source for ERC
+            union(("net", name), p)
+        else:
+            find(p)
+    for p, names in labels.items():
+        for nm in names:
+            union(("net", nm), p)
 
-    # nets: group points by component, then name by label; merge same names
-    groups = defaultdict(set)
-    for pt in list(parent):
-        groups[find(pt)].add(pt)
-    nets = defaultdict(set)
-    for g in groups.values():
-        names = {nm for pt in g for nm in labels.get(pt, [])}
-        if len(names) != 1:
-            errors.append(f"wire group with labels {names}")
-            continue
-        name = names.pop()
-        for pt in g:
-            for ref, num in pin_at.get(pt, []):
-                nets[name].add((ref, num))
+    expect = defaultdict(set)
+    for ref, part in PARTS.items():
+        if ref not in refs:
+            errors.append(f"{ref} missing from the schematic")
+        for num, net in part["nets"].items():
+            expect[net].add((ref, num))
+    owner = {}
+    for net, pins in sorted(expect.items()):
+        roots = {find(("pin",) + k) for k in pins}
+        if len(roots) > 1:
+            errors.append(f"net {net} is in {len(roots)} pieces")
+        for r in roots:
+            if r in owner:
+                errors.append(f"nets {owner[r]} and {net} are joined")
+            owner[r] = net
+    for ref, lib in refs.items():
+        for num, *_ in libs[lib]["pins"]:
+            if num not in PARTS[ref]["nets"] and find(("pin", ref, num)) in owner:
+                errors.append(f"{ref}.{num} should be unconnected")
+    for p, names in labels.items():
+        for nm in names:
+            if owner.get(find(p)) != nm:
+                errors.append(f"label {nm} is on net {owner.get(find(p))}")
 
-    real = {n: sorted(m) for n, m in nets.items()
-            if any(not r.startswith("#") for r, _ in m)}
-    for n, m in real.items():
-        if len([1 for r, _ in m if not r.startswith("#")]) < 2:
-            errors.append(f"net {n} has only one pin: {m}")
-
-    print(f"{len(parts)} symbols, {len(wires)} wires, {sum(map(len, labels.values()))} labels, "
-          f"{len(nc)} no-connects, {len(real)} nets")
+    print(f"{len(refs)} parts, {len(segs)} wires, {len(juncs)} junctions, "
+          f"{len(power_pts)} power symbols, {len(ncs)} no-connects, {len(expect)} nets checked")
     for e in errors:
         print("ERROR:", e)
-    if len(sys.argv) > 1:
-        def nat(p):
-            r, n = p
-            pre = r.rstrip("0123456789")
-            return (pre, int(r[len(pre):] or 0), n)
-        with open(sys.argv[1], "w") as fh:
-            for n in sorted(real):
-                fh.write(f"{n}: " + ", ".join(f"{r}.{p}" for r, p in sorted(real[n], key=nat)
-                                               if not r.startswith("#")) + "\n")
+    if not errors:
+        print("Matches netlist.py: every net complete, no extra joins.")
     return 1 if errors else 0
 
 
