@@ -16,7 +16,7 @@ Read them with the Docs tools when a task touches the hardware. When a decision 
 | `docs/SOFTWARE-IDEAS.md` | Future software enhancements, not yet decided; move an item into `DESIGN.md` once it is |
 | `docs/datasheets/` | Every component datasheet; check pinouts against these |
 | `firmware/rpn_calculator/` | Arduino (STM32duino) sketch for the Nucleo L476RG; `bcd.*` is the 12-digit BCD maths, `tests/` runs it against Python's decimal |
-| `hardware/` | BOM (text and Digi-Key CSV); KiCad files will go here |
+| `hardware/` | BOM (text and Digi-Key CSV); `kicad/` holds the KiCad project, its one-sheet schematic generated from the spec netlist by `generate_schematic.py` (see its README) |
 | `webapp/` | Phone web app, installable (PWA): `index.html` holds all the code; `manifest.webmanifest`, `sw.js` (offline cache), `fonts/`, `icons/`. Published to https://alej9494.github.io/rpn-calculator/ by `.github/workflows/pages.yml` on every push that touches `webapp/`; the workflow stamps `sw.js` with the commit id, so nothing needs bumping by hand. A file added to `webapp/` must also be listed in `sw.js` FILES. Older preview copy: https://claude.ai/artifact/GyVYGFfCaQ68KsLYyFStbs |
 | `tests/` | Shared keystroke test vectors for web app and firmware |
 

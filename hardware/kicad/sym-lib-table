@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "rpn")(type "KiCad")(uri "${KIPRJMOD}/rpn-calculator.kicad_sym")(options "")(descr "RPN calculator symbols"))
+)
